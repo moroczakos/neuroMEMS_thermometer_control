@@ -2,23 +2,25 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
-import csv
-from datetime import datetime
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import pyvisa
-import pandas as pd
-import json
+from instruments.instrument_manager import InstrumentManager
+from utils.file_utils import CsvLogger
+from utils.plot_utils import create_dual_axis_plot, update_plot
+from utils.probe_utils import load_probe_data, load_last_probe, save_last_probe
 import os
-from mock_Keithley2100 import MockKeithley2100
 
 
-class ResistanceApp:
+class ThermometerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Keithley 2100 4-Wire Resistance Logger")
 
-        self.settings_file = "input_files/settings.json"
+        # Settings
+        self.input_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'input_files'))
+        self.output_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'output_files'))
+        self.settings_file = os.path.join(self.input_file_path, 'settings.json')
+
+        # Logger
+        self.logger = CsvLogger()
 
         # Control Variables
         self.running = False
@@ -27,12 +29,11 @@ class ResistanceApp:
         self.visa_resource = tk.StringVar()
 
         # VISA Setup
-        self.rm = pyvisa.ResourceManager()
-        self.dmm = None
+        self.instrument_manager = InstrumentManager()
 
         # Probe
-        self.probes = self.load_probe_data()
-        self.last_probe = self.load_last_probe()
+        self.probes = load_probe_data(os.path.join(self.input_file_path, 'thermoprobes.csv'))
+        self.last_probe = load_last_probe(self.settings_file)
         self.selected_probe = tk.StringVar(value = self.last_probe)
         self.R0 = tk.DoubleVar()
         self.TCR = tk.DoubleVar()
@@ -93,38 +94,21 @@ class ResistanceApp:
                                                                                            sticky = 'w')
 
     def load_visa_resources(self):
-        try:
-            resources = self.rm.list_resources()
-            resources = ("MOCK",) + resources  # Add mock option at top
-            self.visa_dropdown['values'] = resources
-            if resources:
-                self.visa_resource.set(resources[0])
-            else:
-                self.visa_resource.set("No VISA resources found")
-        except Exception as e:
-            messagebox.showerror("VISA Error", f"Could not list VISA resources:\n{e}")
-
-    def load_probe_data(self):
-        try:
-            df = pd.read_csv("input_files/thermoprobes.csv")
-            return df.set_index("Name").to_dict(orient = "index")
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not load probe data:\n{e}")
-            return {}
+        resources = self.instrument_manager.list_resources()
+        self.visa_dropdown['values'] = resources
+        if resources:
+            self.visa_resource.set(resources[0])
+        else:
+            self.visa_resource.set("No VISA resources found")
 
     def setup_plot(self):
-        self.fig, self.ax = plt.subplots()
-        self.ax2 = self.ax.twinx()  # secondary Y axis for temperature
-        self.line_R, = self.ax.plot([], [], label = "Resistance (Ohms)", color = 'black')
-        self.line_T, = self.ax2.plot([], [], label = "Temperature (°C)", color = 'red')
-        self.ax.set_title("Live Resistance and Temperature Measurement")
-        self.ax.set_xlabel("Time (s)")
-        self.ax.set_ylabel("Resistance (Ohms)", color = 'black')
-        self.ax2.set_ylabel("Temperature (°C)", color = 'red')
-        self.ax.grid(True)
-
-        self.canvas = FigureCanvasTkAgg(self.fig, master = self.root)
-        self.canvas.get_tk_widget().pack(fill = tk.BOTH, expand = True)
+        self.fig, ax1, ax2, line_R, line_T, self.canvas = create_dual_axis_plot(self.root,
+                                                                                "Live Resistance and Temperature Measurement",
+                                                                                "Time (s)",
+                                                                                "Resistance (Ohms)",
+                                                                                "Temperature (°C)")
+        self.lines = [line_R, line_T]
+        self.axes = [ax1, ax2]
 
     def start_measurement(self):
         visa_address = self.visa_resource.get()
@@ -133,26 +117,16 @@ class ResistanceApp:
             return
 
         try:
-            if visa_address == "MOCK":
-                self.dmm = MockKeithley2100()
-            else:
-                self.dmm = self.rm.open_resource(visa_address)
-            self.dmm.write("*RST")
-            time.sleep(1)
-            self.dmm.write("CONF:FRES 1000")
-            # self.dmm.write("SENS:FRES:RANG:AUTO ON")
-            self.dmm.write("SENS:FRES:NPLC 1")
-            # self.dmm.write("TRIG:COUNT 1")
+            self.instrument_manager.connect("dmm", visa_address, role = "dmm")
 
             self.running = True
             self.start_button.config(state = "disabled")
             self.stop_button.config(state = "normal")
 
             # File setup
-            self.filename = f"resistance_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            self.csvfile = open(self.filename, 'w', newline = '')
-            self.writer = csv.writer(self.csvfile)
-            self.writer.writerow(['Timestamp', 'Resistance (Ohms)', 'Temperature (°C)'])
+            self.logger.create("resistance_log",
+                               ['Timestamp', 'Resistance (Ohms)', 'Temperature (°C)'],
+                               self.output_file_path)
 
             self.timestamps = []
             self.resistances = []
@@ -167,24 +141,26 @@ class ResistanceApp:
         self.running = False
         self.start_button.config(state = "normal")
         self.stop_button.config(state = "disabled")
-        if self.dmm:
-            self.dmm.close()
-        if hasattr(self, 'csvfile'):
-            self.csvfile.close()
-            print(f"Data saved to {self.filename}")
+
+        if self.instrument_manager.get("dmm"):
+            self.instrument_manager.disconnect("dmm")
+        if hasattr(self, 'logger'):
+            self.logger.close()
+            print(f"Data saved to {self.logger.get_filename()}")
 
     def measure_loop(self):
-        while self.running:
+        dmm = self.instrument_manager.get("dmm")
 
-            error = self.dmm.query('SYST:ERR?').strip()
-            print(error)
+        while self.running:
+            error = self.instrument_manager.get_error("dmm")
+            if error:
+                print(error)
 
             try:
                 # Resistance computation
                 total = 0.0
                 for _ in range(self.average_count.get()):
-                    self.dmm.write("INIT")
-                    reading = float(self.dmm.query("FETCH?").strip())
+                    reading = dmm.measure()
                     total += reading
                     time.sleep(0.01)
                 resistance = total / self.average_count.get()
@@ -205,8 +181,8 @@ class ResistanceApp:
                 self.current_resistance.set(round(resistance, 4))
                 self.current_temperature.set(round(temperature, 2))
 
-                self.writer.writerow([timestamp, resistance, temperature])
-                self.csvfile.flush()
+                if self.running:
+                    self.logger.write_row([timestamp, resistance, temperature])
 
                 self.update_plot()
                 time.sleep(self.interval.get())
@@ -221,38 +197,19 @@ class ResistanceApp:
         if probe in self.probes:
             self.R0.set(self.probes[probe]["R0"])
             self.TCR.set(self.probes[probe]["TCR"])
-            self.save_last_probe(probe)
-
-    def save_last_probe(self, probe_name):
-        try:
-            with open(self.settings_file, "w") as f:
-                json.dump({"last_probe": probe_name}, f)
-        except Exception as e:
-            print(f"Could not save settings: {e}")
-
-    def load_last_probe(self):
-        if os.path.exists(self.settings_file):
-            try:
-                with open(self.settings_file, "r") as f:
-                    settings = json.load(f)
-                    return settings.get("last_probe", "")
-            except Exception as e:
-                print(f"Could not load settings: {e}")
-        return ""
+            save_last_probe(probe, self.settings_file)
 
     def update_plot(self):
-        self.line_R.set_data(self.timestamps, self.resistances)
-        self.line_T.set_data(self.timestamps, self.temperatures)
+        temp_data = (self.timestamps, self.resistances)
+        res_data = (self.timestamps, self.temperatures)
 
-        self.ax.relim()
-        self.ax.autoscale_view()
-        self.ax2.relim()
-        self.ax2.autoscale_view()
+        line_data_pairs = [(self.lines[0], temp_data),
+                           (self.lines[1], res_data)]
 
-        self.canvas.draw()
+        update_plot(line_data_pairs, self.axes, self.canvas)
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = ResistanceApp(root)
+    app = ThermometerApp(root)
     root.mainloop()
