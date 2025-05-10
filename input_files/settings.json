@@ -1,1 +1,10 @@
-{"last_probe": "TE3"}
+{
+    "probe": "BP-24",
+    "interval": 0.1,
+    "avg_count": 1,
+    "current_high": 0.5,
+    "current_low": 0.1,
+    "duration_high": 2,
+    "duration_low": 4,
+    "cycles": 4
+}

@@ -13,6 +13,9 @@ class InstrumentHandler:
     def measure(self):
         raise NotImplementedError
 
+    def get_error(self):
+        raise NotImplementedError
+
     def close(self):
         if self.instrument:
             try:

@@ -1,16 +1,13 @@
 from instruments.handlers.base import InstrumentHandler
-
-
-
-# from mock_Keithley2100 import MockKeithley2100
+from instruments.mock_Keithley6221 import MockKeithley6211
 
 
 class SourceHandler(InstrumentHandler):
     def connect(self, resource_manager):
-        # if self.use_mock or self.address == "MOCK":
-        # self.instrument = MockKeithley2100()
-        # else:
-        self.instrument = resource_manager.open_resource(self.address)
+        if self.use_mock or self.address == "MOCK":
+            self.instrument = MockKeithley6211()
+        else:
+            self.instrument = resource_manager.open_resource(self.address)
         self.reset()
         return self.instrument
 
@@ -36,3 +33,14 @@ class SourceHandler(InstrumentHandler):
             except:
                 pass
         super().close()
+
+    def get_error(self):
+        instr = self.instrument
+        error = instr.query("SYST:ERR?").strip()
+        if error.startswith("+0") or "No error" in error:
+            return None
+
+        return error
+
+    def set_current(self, value):
+        self.instrument.write(f":SOUR:CURR {value}")

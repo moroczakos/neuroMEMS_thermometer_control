@@ -21,17 +21,17 @@ def create_dual_axis_plot(root, title, x_label, y1_label, y2_label, color1='blac
     return fig, ax1, ax2, line1, line2, canvas
 
 
-def create_single_axis_plot(root, xlabel, ylabel, title, color='blue'):
+def create_single_axis_plot(root, title, x_label, y_label, color='blue'):
     fig, ax = plt.subplots()
-    line, = ax.plot([], [], label=ylabel, color=color)
+    line, = ax.plot([], [], label = y_label, color = color)
 
     ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
     ax.grid(True)
 
-    canvas = FigureCanvasTkAgg(fig, master=root)
-    canvas.get_tk_widget().pack(fill='both', expand=True)
+    canvas = FigureCanvasTkAgg(fig, master = root)
+    canvas.get_tk_widget().pack(fill = 'both', expand = True)
 
     return fig, ax, line, canvas
 

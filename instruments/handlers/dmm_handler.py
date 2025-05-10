@@ -1,5 +1,5 @@
 from instruments.handlers.base import InstrumentHandler
-from mock_Keithley2100 import MockKeithley2100
+from instruments.mock_Keithley2100 import MockKeithley2100
 
 
 class DMMHandler(InstrumentHandler):
@@ -22,3 +22,11 @@ class DMMHandler(InstrumentHandler):
         instr.write("INIT")
 
         return float(instr.query("FETCH?").strip())
+
+    def get_error(self):
+        instr = self.instrument
+        error = instr.query("SYST:ERR?").strip()
+        if error.startswith("+0") or "No error" in error:
+            return None
+
+        return error

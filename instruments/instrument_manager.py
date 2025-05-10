@@ -41,18 +41,22 @@ class InstrumentManager:
             messagebox.showerror("Connection Error", f"Could not connect {alias} ({role}) at {address}:\n{e}")
             return None
 
-    def get(self, alias):
+    def get_instrument(self, alias):
         handler = self.handlers.get(alias)
         return handler.instrument if handler else None
 
+    def get_handler(self, alias):
+        handler = self.handlers.get(alias)
+        return handler if handler else None
+
     def get_error(self, alias):
-        instr = self.get(alias)
+        instr = self.get_instrument(alias)
         if not instr:
             return "No instrument found."
+
         try:
-            error = instr.query("SYST:ERR?").strip()
-            if error.startswith("+0") or "No error" in error:
-                return None
+            handler = self.handlers.get(alias)
+            return handler.get_error()
         except:
             return "Could not query error."
 

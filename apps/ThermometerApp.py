@@ -5,7 +5,7 @@ import time
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
 from utils.plot_utils import create_dual_axis_plot, update_plot
-from utils.probe_utils import load_probe_data, load_last_probe, save_last_probe
+from utils.settings_utils import load_probe_data, SettingManager
 import os
 
 
@@ -17,24 +17,23 @@ class ThermometerApp:
         # Settings
         self.input_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'input_files'))
         self.output_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'output_files'))
-        self.settings_file = os.path.join(self.input_file_path, 'settings.json')
+        self.setting_manager = SettingManager(os.path.join(self.input_file_path, 'settings.json'))
 
         # Logger
         self.logger = CsvLogger()
 
-        # Control Variables
-        self.running = False
-        self.interval = tk.DoubleVar(value = 0.1)
-        self.average_count = tk.IntVar(value = 5)
-        self.visa_resource = tk.StringVar()
-
         # VISA Setup
         self.instrument_manager = InstrumentManager()
 
+        # Control Variables
+        self.running = False
+        self.visa_resource = tk.StringVar()
+        self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
+        self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
+
         # Probe
         self.probes = load_probe_data(os.path.join(self.input_file_path, 'thermoprobes.csv'))
-        self.last_probe = load_last_probe(self.settings_file)
-        self.selected_probe = tk.StringVar(value = self.last_probe)
+        self.selected_probe = tk.StringVar(value = self.setting_manager.load_setting("probe"))
         self.R0 = tk.DoubleVar()
         self.TCR = tk.DoubleVar()
         self.update_probe_values()
@@ -75,9 +74,11 @@ class ThermometerApp:
 
         ttk.Label(frame, text = "Interval (s):").grid(row = 2, column = 0)
         ttk.Entry(frame, textvariable = self.interval, width = 6).grid(row = 2, column = 1)
+        self.interval.trace("w", lambda *args: self.save_entry_value("interval", self.interval))
 
         ttk.Label(frame, text = "Average Count:").grid(row = 2, column = 2)
         ttk.Entry(frame, textvariable = self.average_count, width = 6).grid(row = 2, column = 3)
+        self.average_count.trace("w", lambda *args: self.save_entry_value("avg_count", self.average_count))
 
         self.start_button = ttk.Button(frame, text = "Start", command = self.start_measurement)
         self.start_button.grid(row = 2, column = 4, padx = 10)
@@ -101,12 +102,18 @@ class ThermometerApp:
         else:
             self.visa_resource.set("No VISA resources found")
 
+    def save_entry_value(self, name, value):
+        try:
+            self.setting_manager.save_setting(name, value.get())
+        except Exception:
+            pass
+
     def setup_plot(self):
-        self.fig, ax1, ax2, line_R, line_T, self.canvas = create_dual_axis_plot(self.root,
-                                                                                "Live Resistance and Temperature Measurement",
-                                                                                "Time (s)",
-                                                                                "Resistance (Ohms)",
-                                                                                "Temperature (°C)")
+        _, ax1, ax2, line_R, line_T, self.canvas = create_dual_axis_plot(self.root,
+                                                                         "Live Resistance and Temperature Measurement",
+                                                                         "Time (s)",
+                                                                         "Resistance (Ohms)",
+                                                                         "Temperature (°C)")
         self.lines = [line_R, line_T]
         self.axes = [ax1, ax2]
 
@@ -142,14 +149,14 @@ class ThermometerApp:
         self.start_button.config(state = "normal")
         self.stop_button.config(state = "disabled")
 
-        if self.instrument_manager.get("dmm"):
+        if self.instrument_manager.get_instrument("dmm"):
             self.instrument_manager.disconnect("dmm")
         if hasattr(self, 'logger'):
             self.logger.close()
             print(f"Data saved to {self.logger.get_filename()}")
 
     def measure_loop(self):
-        dmm = self.instrument_manager.get("dmm")
+        dmm = self.instrument_manager.get_handler("dmm")
 
         while self.running:
             error = self.instrument_manager.get_error("dmm")
@@ -197,7 +204,7 @@ class ThermometerApp:
         if probe in self.probes:
             self.R0.set(self.probes[probe]["R0"])
             self.TCR.set(self.probes[probe]["TCR"])
-            save_last_probe(probe, self.settings_file)
+            self.setting_manager.save_setting("probe", probe)
 
     def update_plot(self):
         temp_data = (self.timestamps, self.resistances)

@@ -10,7 +10,7 @@ import pyvisa
 import pandas as pd
 import json
 import os
-from mock_Keithley2100 import MockKeithley2100
+from instruments.mock_Keithley2100 import MockKeithley2100
 
 
 class ResistanceApp:
@@ -235,7 +235,7 @@ class ResistanceApp:
             try:
                 with open(self.settings_file, "r") as f:
                     settings = json.load(f)
-                    return settings.get("last_probe", "")
+                    return settings.get_instrument("last_probe", "")
             except Exception as e:
                 print(f"Could not load settings: {e}")
         return ""

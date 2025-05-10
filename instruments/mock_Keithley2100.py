@@ -1,6 +1,7 @@
 import random
 import time
 
+
 class MockKeithley2100:
     def __init__(self):
         self.buffer = []
@@ -15,11 +16,9 @@ class MockKeithley2100:
         if "FETCH?" in command:
             resistance = random.uniform(320, 430)  # Simulated range
             return f"{resistance:.6f}"
-        return "0"
-
-    def measure(self):
-        time.sleep(self.query_delay)
-        return random.uniform(320, 430)  # Simulated range
+        elif "SYST:ERR?" in command:
+            return "No error"
+        return "Not known command"
 
     def close(self):
         pass
