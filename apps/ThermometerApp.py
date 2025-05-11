@@ -67,17 +67,19 @@ class ThermometerApp:
         self.probe_dropdown.bind("<<ComboboxSelected>>", self.update_probe_values)
 
         ttk.Label(frame, text = "R₀:").grid(row = 1, column = 2)
-        ttk.Entry(frame, textvariable = self.R0, width = 10, state = "readonly").grid(row = 1, column = 3)
+        ttk.Entry(frame, textvariable = self.R0, width = 10, state = "readonly", justify = 'center').grid(row = 1,
+                                                                                                          column = 3)
 
         ttk.Label(frame, text = "TCR:").grid(row = 1, column = 4)
-        ttk.Entry(frame, textvariable = self.TCR, width = 10, state = "readonly").grid(row = 1, column = 5)
+        ttk.Entry(frame, textvariable = self.TCR, width = 10, state = "readonly", justify = 'center').grid(row = 1,
+                                                                                                           column = 5)
 
         ttk.Label(frame, text = "Interval (s):").grid(row = 2, column = 0)
-        ttk.Entry(frame, textvariable = self.interval, width = 6).grid(row = 2, column = 1)
+        ttk.Entry(frame, textvariable = self.interval, width = 6, justify = 'center').grid(row = 2, column = 1)
         self.interval.trace("w", lambda *args: self.save_entry_value("interval", self.interval))
 
-        ttk.Label(frame, text = "Average Count:").grid(row = 2, column = 2)
-        ttk.Entry(frame, textvariable = self.average_count, width = 6).grid(row = 2, column = 3)
+        ttk.Label(frame, text = "Average count:").grid(row = 2, column = 2)
+        ttk.Entry(frame, textvariable = self.average_count, width = 6, justify = 'center').grid(row = 2, column = 3)
         self.average_count.trace("w", lambda *args: self.save_entry_value("avg_count", self.average_count))
 
         self.start_button = ttk.Button(frame, text = "Start", command = self.start_measurement)
@@ -131,7 +133,7 @@ class ThermometerApp:
             self.stop_button.config(state = "normal")
 
             # File setup
-            self.logger.create("resistance_log",
+            self.logger.create(f"resistance_log_{self.selected_probe.get()}",
                                ['Timestamp', 'Resistance (Ohms)', 'Temperature (°C)'],
                                self.output_file_path)
 
@@ -156,7 +158,7 @@ class ThermometerApp:
             print(f"Data saved to {self.logger.get_filename()}")
 
     def measure_loop(self):
-        dmm = self.instrument_manager.get_handler("dmm")
+        dmm_handler = self.instrument_manager.get_handler("dmm")
 
         while self.running:
             error = self.instrument_manager.get_error("dmm")
@@ -167,7 +169,7 @@ class ThermometerApp:
                 # Resistance computation
                 total = 0.0
                 for _ in range(self.average_count.get()):
-                    reading = dmm.measure()
+                    reading = dmm_handler.measure()
                     total += reading
                     time.sleep(0.01)
                 resistance = total / self.average_count.get()
