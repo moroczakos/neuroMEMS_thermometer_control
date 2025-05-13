@@ -4,37 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from tkinter import Tk, filedialog, Button, Label, Frame, Spinbox, IntVar, StringVar, Entry
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from tkinter import Scrollbar, Text, END
-import logging
-
-# -------------------------------
-# Logger Configuration
-# -------------------------------
-logging.basicConfig(
-    level = logging.INFO,
-    format = '%(asctime)s - %(levelname)s - %(message)s',
-    filename = 'app.log',
-    filemode = 'a'  # Append log entries (instead of overwriting)
-)
-logger = logging.getLogger(__name__)
-
-
-class TextHandler(logging.Handler):
-    """Custom logging handler to display logs in a Tkinter Text widget."""
-
-    def __init__(self, text_widget):
-        super().__init__()
-        self.text_widget = text_widget
-
-    def emit(self, record):
-        """Emit a log record."""
-        msg = self.format(record)
-        self.text_widget.after(0, self._write, msg)
-
-    def _write(self, msg):
-        """Insert log message into the Text widget."""
-        self.text_widget.insert(END, msg + '\n')
-        self.text_widget.see(END)  # Auto-scroll
+from utils.logger_manager import LoggerManager
+from utils.ui_utils.logger_panel import LoggingPanel
 
 
 class TemperaturePlotterApp:
@@ -48,26 +19,17 @@ class TemperaturePlotterApp:
         self.degree_var = IntVar(value = 1)  # Default polynomial degree value
         self.smoothing_var = StringVar(value = "50")  # Default smoothing window value (as string)
 
+        self.logger = LoggerManager().get_logger()
+
         self.setup_ui()
         self.setup_logger_panel()
-        logger.info("Application started and UI initialized.")
 
     def setup_logger_panel(self):
-        """Set up a panel in the UI to display logs."""
-        log_frame = Frame(self.root)
-        log_frame.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
+        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
+        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
+        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
 
-        scrollbar = Scrollbar(log_frame)
-        scrollbar.pack(side = 'right', fill = 'y')
-
-        self.log_text = Text(log_frame, height = 10, wrap = 'word', yscrollcommand = scrollbar.set)
-        self.log_text.pack(side = 'left', fill = 'both', expand = True)
-        scrollbar.config(command = self.log_text.yview)
-
-        # Attach the custom TextHandler to capture log entries and display them
-        text_handler = TextHandler(self.log_text)
-        text_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        logger.addHandler(text_handler)
+        self.logger.info("Application started and UI initialized.")
 
     def setup_ui(self):
         """Set up the main user interface components."""
@@ -105,26 +67,26 @@ class TemperaturePlotterApp:
             self.plot_data()
         else:
             self.file_label.config(text = "No file selected.")
-            logger.warning("No file was selected.")
+            self.logger.warning("No file was selected.")
 
     def update_plot_if_file_loaded(self, *args):
         """Update the plot if a file is loaded and input changes."""
         if self.file_path:
-            logger.info("Plot update triggered by input change.")
+            self.logger.info("Plot update triggered by input change.")
             self.plot_data()
 
     def plot_data(self):
         """Read the CSV file and plot the temperature data with drift correction."""
         try:
             df = pd.read_csv(self.file_path)
-            logger.info("CSV file successfully read into DataFrame.")
+            self.logger.info("CSV file successfully read into DataFrame.")
             time = df['Timestamp']
             temp = df['Temperature (°C)']
             poly_degree = self.degree_var.get()
             smoothing_window = self.get_smoothing_window()
 
             # Apply drift correction and smoothing
-            logger.info(f"Applying drift correction (degree={poly_degree}, smoothing={smoothing_window})")
+            self.logger.info(f"Applying drift correction (degree={poly_degree}, smoothing={smoothing_window})")
             drift, compensated, smoothed = self.apply_drift_correction(time, temp, poly_degree, smoothing_window)
 
             # Find transition points in the smoothed signal
@@ -135,9 +97,9 @@ class TemperaturePlotterApp:
 
             # Draw the plot with the processed data
             self.draw_plot(time, temp, drift, compensated, smoothed, transitions, average_amplitude, poly_degree)
-            logger.info("Plotting completed.")
+            self.logger.info("Plotting completed.")
         except Exception as e:
-            logger.error(f"Error while plotting data: {e}", exc_info = True)
+            self.logger.error(f"Error while plotting data: {e}", exc_info = True)
 
     def get_smoothing_window(self):
         """Retrieve and validate the smoothing window value."""
@@ -145,7 +107,7 @@ class TemperaturePlotterApp:
             val = int(self.smoothing_var.get())
             return max(1, val)
         except ValueError:
-            logger.warning("Invalid smoothing value entered. Defaulting to 10.")
+            self.logger.warning("Invalid smoothing value entered. Defaulting to 10.")
             return 10  # Default fallback
 
     def apply_drift_correction(self, time, temp, degree, window):
@@ -167,7 +129,7 @@ class TemperaturePlotterApp:
         for i in range(1, len(transitions)):
             if transitions[i] - transitions[i - 1] >= min_distance:
                 filtered.append(transitions[i])
-        logger.info(f"Found {len(filtered)} transition points.")
+        self.logger.info(f"Found {len(filtered)} transition points.")
         return filtered
 
     def compute_amplitudes(self, signal, transitions):
@@ -179,7 +141,7 @@ class TemperaturePlotterApp:
             amplitudes.append(np.max(wave) - np.min(wave))  # Calculate amplitude as the difference between max and min
             start_idx = transitions[i]  # Update start index for the next wave
         avg_amp = np.mean(amplitudes) if amplitudes else 0
-        logger.info(f"Average amplitude computed: {avg_amp:.2f}")
+        self.logger.info(f"Average amplitude computed: {avg_amp:.2f}")
         return avg_amp
 
     def draw_plot(self, time, temp, drift, compensated, smoothed, transitions, avg_amp, degree):
