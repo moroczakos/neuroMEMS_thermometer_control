@@ -44,6 +44,9 @@ class ThermometerApp:
         self.timestamps = []
         self.resistances = []
         self.temperatures = []
+        self.plot_timestamps = []
+        self.plot_resistances = []
+        self.plot_temperatures = []
         self.data_queue = queue.Queue()
         self.current_resistance = tk.DoubleVar()
         self.current_temperature = tk.DoubleVar()
@@ -185,6 +188,9 @@ class ThermometerApp:
             self.timestamps = []
             self.resistances = []
             self.temperatures = []
+            self.plot_timestamps = []
+            self.plot_resistances = []
+            self.plot_temperatures = []
             self.start_time = time.time()
 
             threading.Thread(target = self.measure_loop, daemon = True).start()
@@ -207,12 +213,7 @@ class ThermometerApp:
     def perform_measurement(self):
         """Performs a single averaged resistance reading, calculates temperature, updates UI."""
         dmm_handler = self.instrument_manager.get_handler("dmm")
-
-        total = 0.0
-        for _ in range(self.average_count.get()):
-            total += dmm_handler.measure()
-            time.sleep(0.01)
-        resistance = total / self.average_count.get()
+        resistance = dmm_handler.measure()
 
         # Resistance computation
         R0 = self.R0.get()
@@ -227,17 +228,33 @@ class ThermometerApp:
         return resistance, temperature
 
     def measure_loop(self):
-        dmm_handler = self.instrument_manager.get_handler("dmm")
+        data_counter = 0
+        total_resistance = 0.0
+        total_temperature = 0.0
 
         while self.running:
             error = self.instrument_manager.get_error("dmm")
             if error:
                 print(error)
 
+            avg_count = self.average_count.get()
+
             try:
                 # Resistance computation
                 resistance, temperature = self.perform_measurement()
                 timestamp = time.time() - self.start_time
+
+                data_counter += 1
+                total_resistance += resistance
+                total_temperature += temperature
+                if data_counter >= avg_count:
+                    self.plot_timestamps.append(timestamp)
+                    self.plot_resistances.append(total_resistance / avg_count)
+                    self.plot_temperatures.append(total_temperature / avg_count)
+
+                    data_counter = 0
+                    total_resistance = 0.0
+                    total_temperature = 0.0
 
                 self.timestamps.append(timestamp)
                 self.resistances.append(resistance)
@@ -283,8 +300,8 @@ class ThermometerApp:
             self.setting_manager.save_setting("probe", probe)
 
     def update_plot(self):
-        temp_data = (self.timestamps, self.resistances)
-        res_data = (self.timestamps, self.temperatures)
+        temp_data = (self.plot_timestamps, self.plot_resistances)
+        res_data = (self.plot_timestamps, self.plot_temperatures)
 
         line_data_pairs = [(self.lines[0], temp_data),
                            (self.lines[1], res_data)]
