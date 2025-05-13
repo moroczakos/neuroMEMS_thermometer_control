@@ -8,6 +8,7 @@ from utils.plot_utils import create_dual_axis_plot, update_plot
 from utils.settings_utils import load_probe_data, SettingManager
 import os
 import queue
+from concurrent.futures import ThreadPoolExecutor
 
 
 class ThermometerApp:
@@ -44,12 +45,11 @@ class ThermometerApp:
         self.timestamps = []
         self.resistances = []
         self.temperatures = []
-        self.plot_timestamps = []
-        self.plot_resistances = []
-        self.plot_temperatures = []
         self.data_queue = queue.Queue()
         self.current_resistance = tk.DoubleVar()
         self.current_temperature = tk.DoubleVar()
+
+        self.executor = None
 
         self.create_widgets()
         self.setup_plot()
@@ -188,11 +188,9 @@ class ThermometerApp:
             self.timestamps = []
             self.resistances = []
             self.temperatures = []
-            self.plot_timestamps = []
-            self.plot_resistances = []
-            self.plot_temperatures = []
             self.start_time = time.time()
 
+            self.executor = ThreadPoolExecutor(max_workers = 6)
             threading.Thread(target = self.measure_loop, daemon = True).start()
             threading.Thread(target = self.data_worker_loop, daemon = True).start()
         except Exception as e:
@@ -206,6 +204,8 @@ class ThermometerApp:
 
         if self.instrument_manager.get_instrument("dmm"):
             self.instrument_manager.disconnect("dmm")
+        if hasattr(self, 'executor'):
+            self.executor.shutdown(wait = False)
         if hasattr(self, 'logger'):
             self.logger.close()
             print(f"Data saved to {self.logger.get_filename()}")
@@ -228,40 +228,15 @@ class ThermometerApp:
         return resistance, temperature
 
     def measure_loop(self):
-        data_counter = 0
-        total_resistance = 0.0
-        total_temperature = 0.0
+        self.data_counter = 0
+        self.total_resistance = 0.0
+        self.total_temperature = 0.0
 
         while self.running:
-            error = self.instrument_manager.get_error("dmm")
-            if error:
-                print(error)
-
-            avg_count = self.average_count.get()
-
             try:
                 # Resistance computation
                 resistance, temperature = self.perform_measurement()
                 timestamp = time.time() - self.start_time
-
-                data_counter += 1
-                total_resistance += resistance
-                total_temperature += temperature
-                if data_counter >= avg_count:
-                    self.plot_timestamps.append(timestamp)
-                    self.plot_resistances.append(total_resistance / avg_count)
-                    self.plot_temperatures.append(total_temperature / avg_count)
-
-                    data_counter = 0
-                    total_resistance = 0.0
-                    total_temperature = 0.0
-
-                self.timestamps.append(timestamp)
-                self.resistances.append(resistance)
-                self.temperatures.append(temperature)
-
-                self.current_resistance.set(round(resistance, 4))
-                self.current_temperature.set(round(temperature, 2))
 
                 # Enqueue data for logger and plotting
                 self.data_queue.put((timestamp, resistance, temperature))
@@ -270,6 +245,10 @@ class ThermometerApp:
             except Exception as e:
                 print("Measurement error:", e)
                 self.running = False
+
+                error = self.instrument_manager.get_error("dmm")
+                if error:
+                    print(error)
                 break
 
     def data_worker_loop(self):
@@ -284,13 +263,40 @@ class ThermometerApp:
                 timestamp, resistance, temperature = self.data_queue.get(timeout = 0.5)
 
                 if self.running:
-                    self.logger.write_row([timestamp, resistance, temperature])
-                    self.update_plot()
+                    # Submit logging and plotting as async tasks
+                    self.executor.submit(self.safe_log, timestamp, resistance, temperature)
+                    self.executor.submit(self.safe_plot, timestamp, resistance, temperature)
 
             except queue.Empty:
                 continue
             except Exception as e:
                 print("Data processing error:", e)
+
+    def safe_log(self, timestamp, resistance, temperature):
+        try:
+            self.logger.write_row([timestamp, resistance, temperature])
+        except Exception as e:
+            print(f"Logging error: {e}")
+
+    def safe_plot(self, timestamp, resistance, temperature):
+        try:
+            # Average calculation
+            avg_count = self.average_count.get()
+            self.data_counter += 1
+            self.total_resistance += resistance
+            self.total_temperature += temperature
+            if self.data_counter >= avg_count:
+                self.timestamps.append(timestamp)
+                self.resistances.append(self.total_resistance / avg_count)
+                self.temperatures.append(self.total_temperature / avg_count)
+
+                self.data_counter = 0
+                self.total_resistance = 0.0
+                self.total_temperature = 0.0
+
+                self.update_plot()
+        except Exception as e:
+            print(f"Plotting error: {e}")
 
     def update_probe_values(self, event=None):
         probe = self.selected_probe.get()
@@ -300,8 +306,8 @@ class ThermometerApp:
             self.setting_manager.save_setting("probe", probe)
 
     def update_plot(self):
-        temp_data = (self.plot_timestamps, self.plot_resistances)
-        res_data = (self.plot_timestamps, self.plot_temperatures)
+        temp_data = (self.timestamps, self.resistances)
+        res_data = (self.timestamps, self.temperatures)
 
         line_data_pairs = [(self.lines[0], temp_data),
                            (self.lines[1], res_data)]

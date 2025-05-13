@@ -42,4 +42,4 @@ def update_plot(line_data_pairs, axes, canvas):
     for ax in axes:
         ax.relim()
         ax.autoscale_view()
-    canvas.draw()
+    canvas.draw_idle()
