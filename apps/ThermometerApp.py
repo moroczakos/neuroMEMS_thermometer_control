@@ -7,6 +7,7 @@ from utils.file_utils import CsvLogger
 from utils.plot_utils import create_dual_axis_plot, update_plot
 from utils.settings_utils import load_probe_data, SettingManager
 import os
+import queue
 
 
 class ThermometerApp:
@@ -27,6 +28,7 @@ class ThermometerApp:
 
         # Control Variables
         self.running = False
+        self.preview_running = False
         self.visa_resource = tk.StringVar()
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
@@ -42,6 +44,7 @@ class ThermometerApp:
         self.timestamps = []
         self.resistances = []
         self.temperatures = []
+        self.data_queue = queue.Queue()
         self.current_resistance = tk.DoubleVar()
         self.current_temperature = tk.DoubleVar()
 
@@ -96,6 +99,13 @@ class ThermometerApp:
         ttk.Label(frame, textvariable = self.current_temperature, foreground = 'red').grid(row = 3, column = 3,
                                                                                            sticky = 'w')
 
+        self.preview_start_button = ttk.Button(frame, text = "Start Preview", command = self.start_preview)
+        self.preview_start_button.grid(row = 3, column = 4, pady = 5)
+
+        self.preview_stop_button = ttk.Button(frame, text = "Stop Preview", command = self.stop_preview,
+                                              state = "disabled")
+        self.preview_stop_button.grid(row = 3, column = 5, pady = 5)
+
     def load_visa_resources(self):
         resources = self.instrument_manager.list_resources()
         self.visa_dropdown['values'] = resources
@@ -119,6 +129,40 @@ class ThermometerApp:
         self.lines = [line_R, line_T]
         self.axes = [ax1, ax2]
 
+    def start_preview(self):
+        visa_address = self.visa_resource.get()
+        if "No VISA" in visa_address or not visa_address.strip():
+            messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
+            return
+
+        try:
+            self.instrument_manager.connect("dmm", visa_address, role = "dmm")
+            self.preview_running = True
+            self.preview_start_button.config(state = "disabled")
+            self.preview_stop_button.config(state = "normal")
+            self.start_button.config(state = "disabled")
+            threading.Thread(target = self.preview_loop, daemon = True).start()
+        except Exception as e:
+            messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
+
+    def stop_preview(self):
+        self.preview_running = False
+        self.preview_start_button.config(state = "normal")
+        self.preview_stop_button.config(state = "disabled")
+        self.start_button.config(state = "normal")
+        self.instrument_manager.disconnect("dmm")
+
+    def preview_loop(self):
+        self.instrument_manager.get_handler("dmm")  # ensure connected
+        while self.preview_running:
+            try:
+                self.perform_measurement()
+                time.sleep(self.interval.get())
+            except Exception as e:
+                print("Preview error:", e)
+                self.preview_running = False
+                break
+
     def start_measurement(self):
         visa_address = self.visa_resource.get()
         if "No VISA" in visa_address or not visa_address.strip():
@@ -131,6 +175,7 @@ class ThermometerApp:
             self.running = True
             self.start_button.config(state = "disabled")
             self.stop_button.config(state = "normal")
+            self.preview_start_button.config(state = "disabled")
 
             # File setup
             self.logger.create(f"resistance_log_{self.selected_probe.get()}",
@@ -143,6 +188,7 @@ class ThermometerApp:
             self.start_time = time.time()
 
             threading.Thread(target = self.measure_loop, daemon = True).start()
+            threading.Thread(target = self.data_worker_loop, daemon = True).start()
         except Exception as e:
             messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
 
@@ -150,12 +196,35 @@ class ThermometerApp:
         self.running = False
         self.start_button.config(state = "normal")
         self.stop_button.config(state = "disabled")
+        self.preview_start_button.config(state = "normal")
 
         if self.instrument_manager.get_instrument("dmm"):
             self.instrument_manager.disconnect("dmm")
         if hasattr(self, 'logger'):
             self.logger.close()
             print(f"Data saved to {self.logger.get_filename()}")
+
+    def perform_measurement(self):
+        """Performs a single averaged resistance reading, calculates temperature, updates UI."""
+        dmm_handler = self.instrument_manager.get_handler("dmm")
+
+        total = 0.0
+        for _ in range(self.average_count.get()):
+            total += dmm_handler.measure()
+            time.sleep(0.01)
+        resistance = total / self.average_count.get()
+
+        # Resistance computation
+        R0 = self.R0.get()
+        TCR = self.TCR.get()
+
+        # Compute temperature from resistance according to the Callendar-Van Dusen equation
+        temperature = (resistance / R0 - 1) / TCR if R0 > 0 and TCR > 0 else float('nan')
+
+        self.current_resistance.set(round(resistance, 4))
+        self.current_temperature.set(round(temperature, 2))
+
+        return resistance, temperature
 
     def measure_loop(self):
         dmm_handler = self.instrument_manager.get_handler("dmm")
@@ -167,21 +236,8 @@ class ThermometerApp:
 
             try:
                 # Resistance computation
-                total = 0.0
-                for _ in range(self.average_count.get()):
-                    reading = dmm_handler.measure()
-                    total += reading
-                    time.sleep(0.01)
-                resistance = total / self.average_count.get()
+                resistance, temperature = self.perform_measurement()
                 timestamp = time.time() - self.start_time
-
-                # Compute temperature from resistance according to the Callendar-Van Dusen equation
-                R0 = self.R0.get()
-                TCR = self.TCR.get()
-                if R0 > 0 and TCR > 0:
-                    temperature = (resistance / R0 - 1) / TCR
-                else:
-                    temperature = float('nan')
 
                 self.timestamps.append(timestamp)
                 self.resistances.append(resistance)
@@ -190,16 +246,34 @@ class ThermometerApp:
                 self.current_resistance.set(round(resistance, 4))
                 self.current_temperature.set(round(temperature, 2))
 
-                if self.running:
-                    self.logger.write_row([timestamp, resistance, temperature])
-
-                self.update_plot()
+                # Enqueue data for logger and plotting
+                self.data_queue.put((timestamp, resistance, temperature))
                 time.sleep(self.interval.get())
 
             except Exception as e:
                 print("Measurement error:", e)
                 self.running = False
                 break
+
+    def data_worker_loop(self):
+        MAX_QUEUE_SIZE = 100
+
+        while self.running or not self.data_queue.empty():
+            # Warn if queue is growing too large
+            if self.data_queue.qsize() > MAX_QUEUE_SIZE:
+                print("⚠️ Queue backlog detected! Plotting/logging is slower than measurements.")
+
+            try:
+                timestamp, resistance, temperature = self.data_queue.get(timeout = 0.5)
+
+                if self.running:
+                    self.logger.write_row([timestamp, resistance, temperature])
+                    self.update_plot()
+
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print("Data processing error:", e)
 
     def update_probe_values(self, event=None):
         probe = self.selected_probe.get()
