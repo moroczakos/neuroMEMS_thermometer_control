@@ -5,7 +5,6 @@ import time
 import os
 import queue
 from concurrent.futures import ThreadPoolExecutor
-
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
 from utils.plot_utils import create_dual_axis_plot, update_plot
@@ -25,9 +24,10 @@ class MeasurementProfile:
 
 
 class ThermometerApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Measurement Logger")
+    def __init__(self, root, main_app = None):
+        self.main_app = main_app
+        self.root = tk.Frame(root)
+        self.root.pack(fill = 'both', expand = True)
 
         # File paths and settings
         self.input_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'input_files'))
@@ -36,7 +36,7 @@ class ThermometerApp:
 
         # Logger
         self.csv_logger = CsvLogger()
-        self.logger = LoggerManager().get_logger()
+        self.logger = LoggerManager(log_file = "thermometer_app.log").get_logger()
 
         # Instrument
         self.instrument_manager = InstrumentManager()
@@ -92,8 +92,10 @@ class ThermometerApp:
 
         ttk.Label(frame, text = "VISA Resource:").grid(row = 0, column = 0)
         self.visa_dropdown = ttk.Combobox(frame, textvariable = self.visa_resource, width = 40)
-        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3, padx = 5, pady = 5)
-        ttk.Button(frame, text = "Refresh", command = self.load_visa_resources).grid(row = 0, column = 4)
+        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 2)
+
+        self.refresh_button = ttk.Button(frame, text = "Refresh", command = self.load_visa_resources)
+        self.refresh_button.grid(row = 0, column = 3, padx = 5, pady = 10)
 
         ttk.Label(frame, text = "Thermoprobe:").grid(row = 1, column = 0)
         self.probe_dropdown = ttk.Combobox(frame, textvariable = self.selected_probe, values = list(self.probes.keys()),
@@ -131,8 +133,15 @@ class ThermometerApp:
                                               state = "disabled")
         self.preview_stop_button.grid(row = 3, column = 5)
 
+        # Placeholder to match height (6 rows)
+        ttk.Label(frame, text = "").grid(row = 4, column = 0, pady = 8)
+        ttk.Label(frame, text = "").grid(row = 5, column = 0)
+        ttk.Label(frame, text = "").grid(row = 6, column = 0)
+
     def load_visa_resources(self):
         resources = self.instrument_manager.list_resources()
+        if self.instrument_manager.allow_mock:
+            resources = ("MOCK",) + tuple(resources)
         self.visa_dropdown['values'] = resources
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
         self.logger.info(f"Loaded VISA resources: {resources}")
@@ -181,8 +190,17 @@ class ThermometerApp:
         self.preview_start_button.config(state = "normal")
         self.preview_stop_button.config(state = "disabled")
         self.start_button.config(state = "normal")
+
         self.instrument_manager.disconnect("dmm")
         self.logger.info("Stopped preview mode.")
+
+    def enable_preview(self):
+        self.preview_start_button.config(state = "normal")
+        self.preview_stop_button.config(state = "disabled")
+
+    def disable_preview(self):
+        self.preview_start_button.config(state = "disabled")
+        self.preview_stop_button.config(state = "disabled")
 
     def preview_loop(self):
         while self.preview_running:
@@ -200,7 +218,7 @@ class ThermometerApp:
         self.running = True
         self.start_button.config(state = "disabled")
         self.stop_button.config(state = "normal")
-        self.preview_start_button.config(state = "disabled")
+        self.disable_preview()
 
         self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
                                self.output_file_path)
@@ -215,15 +233,20 @@ class ThermometerApp:
         self.logger.info("Started measurement.")
 
     def stop_measurement(self):
-        self.running = False
-        self.start_button.config(state = "normal")
-        self.stop_button.config(state = "disabled")
-        self.preview_start_button.config(state = "normal")
-        self.instrument_manager.disconnect("dmm")
-        if self.executor:
-            self.executor.shutdown(wait = False)
-        self.csv_logger.close()
-        self.logger.info(f"Measurement stopped. Data saved to {self.csv_logger.get_filename()}")
+        if self.running:
+            self.running = False
+            self.start_button.config(state = "normal")
+            self.stop_button.config(state = "disabled")
+            self.enable_preview()
+
+            self.instrument_manager.disconnect("dmm")
+            if self.executor:
+                self.executor.shutdown(wait = False)
+            self.csv_logger.close()
+            self.logger.info(f"Measurement stopped. Data saved to {self.csv_logger.get_filename()}")
+
+            if self.main_app:
+                self.main_app.stop_apps()  # Stop main app
 
     def _connect(self):
         visa_address = self.visa_resource.get()
@@ -250,7 +273,12 @@ class ThermometerApp:
                 self.data_queue.put((timestamp, y1, y2))
                 time.sleep(self.interval.get())
             except Exception as e:
+                self.running = False
                 self.logger.error(f"Measurement error: {e}")
+
+                error = self.instrument_manager.get_error("dmm")
+                if error:
+                    self.logger.error(error)
                 break
 
     def data_worker_loop(self):
@@ -299,5 +327,6 @@ class ThermometerApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.title("Keithley 2100 4-Wire Resistance Logger")
     app = ThermometerApp(root)
     root.mainloop()

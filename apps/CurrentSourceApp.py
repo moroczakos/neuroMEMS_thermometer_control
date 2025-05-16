@@ -7,12 +7,15 @@ from utils.file_utils import CsvLogger
 from utils.plot_utils import create_single_axis_plot, update_plot
 import os
 from utils.settings_utils import SettingManager
+from utils.logger_manager import LoggerManager
+from utils.ui_utils.logger_panel import LoggingPanel
 
 
 class CurrentCycleApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Keithley 6221 Current Source")
+    def __init__(self, root, main_app = None):
+        self.main_app = main_app
+        self.root = tk.Frame(root)
+        self.root.pack(fill = 'both', expand = True)
 
         # Settings
         self.input_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'input_files'))
@@ -21,10 +24,12 @@ class CurrentCycleApp:
         self.start_low = True  # Square wave current starts with low value
 
         # Logger
-        self.logger = CsvLogger()
+        self.csv_logger = CsvLogger()
+        self.logger = LoggerManager(log_file = "current_source_app.log").get_logger()
 
-        # VISA Setup
+        # Instrument Setup
         self.instrument_manager = InstrumentManager()
+        self.instrument_alias = None
 
         # Control variables
         self.running = False
@@ -44,7 +49,15 @@ class CurrentCycleApp:
 
         self.create_widgets()
         self.setup_plot()
+        self.setup_logger_panel()
         self.load_visa_resources()
+
+    def setup_logger_panel(self):
+        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
+        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
+        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
+
+        self.logger.info("Application started and UI initialized.")
 
     def create_widgets(self):
         frame = ttk.Frame(self.root, padding = 10)
@@ -112,17 +125,18 @@ class CurrentCycleApp:
 
     def load_visa_resources(self):
         resources = self.instrument_manager.list_resources(only_tcpip = True)
+        if self.instrument_manager.allow_mock:
+            resources = ("MOCK_6221", "MOCK_2635") + tuple(resources)
         self.visa_dropdown['values'] = resources
-        if resources:
-            self.visa_resource.set(resources[0])
-        else:
-            self.visa_resource.set("No VISA resources found")
+        self.visa_resource.set(resources[0] if resources else "No VISA resources found")
+        self.logger.info(f"Loaded VISA resources: {resources}")
 
     def save_entry_value(self, name, value):
         try:
             self.setting_manager.save_setting(name, value.get())
-        except Exception:
-            pass
+            self.logger.info(f"Saved setting '{name}': {value.get()}")
+        except Exception as e:
+            self.logger.warning(f"Failed to save setting '{name}': {e}")
 
     def setup_plot(self):
         _, self.ax, self.line, self.canvas = create_single_axis_plot(self.root,
@@ -133,47 +147,75 @@ class CurrentCycleApp:
     def start_measurement(self):
         visa_address = self.visa_resource.get()
         if "No VISA" in visa_address or not visa_address.strip():
+            self.logger.exception("Please select a valid VISA resource.")
             messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
             return
 
         try:
-            self.instrument_manager.connect("source", visa_address, role = "source")
+            if "6221" in visa_address:
+                model = "6221"
+            elif "2635" in visa_address:
+                model = "2635"
+            else:
+                model = self.instrument_manager.get_instrument_model(visa_address)
+
+            if model == "6221":
+                self.instrument_alias = "source_6221"
+            elif model == "2635":
+                self.instrument_alias = "source_2635"
+            else:
+                self.logger.exception(f"Not known model: {model}. Known models are 6221 and 2635")
+                messagebox.showerror("Not known model error",
+                                     f"Not known model: {model}. Known models are 6221 and 2635")
+                return
+
+            self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
 
             self.running = True
             self.start_button.config(state = "disabled")
             self.stop_button.config(state = "normal")
 
             # File setup
-            self.logger.create("current_log",
-                               ['Timestamp', 'Current (A)', 'Voltage (V)'],
-                               self.output_file_path)
+            self.csv_logger.create("current_log",
+                                   ['Timestamp', 'Current (A)', 'Voltage (V)'],
+                                   self.output_file_path)
 
             self.timestamps = []
             self.currents = []
             self.start_time = time.time()
 
             threading.Thread(target = self.cycle_loop, daemon = True).start()
+            self.logger.info(f"Starting measurement on VISA: {visa_address}")
         except Exception as e:
+            self.logger.exception(f"Could not open VISA resource:\n{e}")
             messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
 
     def stop_measurement(self):
-        self.running = False
-        self.start_button.config(state = "normal")
-        self.stop_button.config(state = "disabled")
+        if self.running:
+            self.running = False
+            self.start_button.config(state = "normal")
+            self.stop_button.config(state = "disabled")
 
-        if self.instrument_manager.get_instrument("source"):
-            self.instrument_manager.disconnect("source")
-        if hasattr(self, 'logger'):
-            self.logger.close()
-            print(f"Data saved to {self.logger.get_filename()}")
+            if self.instrument_manager.get_instrument(self.instrument_alias):
+                self.instrument_manager.disconnect(self.instrument_alias)
+
+            self.logger.info("Measurement stopped.")
+
+            if hasattr(self, 'csv_logger'):
+                self.logger.info(f"Data saved to {self.csv_logger.get_filename()}")
+                self.csv_logger.close()
+
+            if self.main_app:
+                self.main_app.stop_apps()  # Stop main app
 
     def update_start_low(self):
         # Update self.start_low based on the checkbox state
         self.start_low = self.start_low_var.get()
+        self.logger.info(f"The start with low current state changed to {self.start_low}")
 
     def cycle_loop(self):
         threading.Thread(target = self.measure_loop, daemon = True).start()
-        source_handler = self.instrument_manager.get_handler("source")
+        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
 
         try:
             first_current, second_current = (
@@ -185,20 +227,23 @@ class CurrentCycleApp:
 
             for cycle in range(self.cycles.get()):
                 if not self.running: break
+                self.logger.info(f"Cycle {cycle + 1}/{self.cycles.get()}: Setting current to {first_current}A")
                 source_handler.set_current(first_current)
                 time.sleep(first_duration)
 
                 if not self.running: break
+                self.logger.info(f"Cycle {cycle + 1}/{self.cycles.get()}: Setting current to {second_current}A")
                 source_handler.set_current(second_current)
                 time.sleep(second_duration)
         except Exception as e:
+            self.logger.exception("Cycle Error", str(e))
             messagebox.showerror("Cycle Error", str(e))
 
         if self.running:
             self.stop_measurement()
 
     def measure_loop(self):
-        source_handler = self.instrument_manager.get_handler("source")
+        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
 
         while self.running:
             try:
@@ -208,7 +253,8 @@ class CurrentCycleApp:
                 for _ in range(self.average_count.get()):
                     volt, curr = source_handler.measure()
                     total_current += curr
-                    total_voltage += volt
+                    if volt:
+                        total_voltage += volt
                     time.sleep(0.01)
                 current = total_current / self.average_count.get()
                 voltage = total_voltage / self.average_count.get()
@@ -220,13 +266,13 @@ class CurrentCycleApp:
                 self.current_current.set(round(current, 2))
 
                 if self.running:
-                    self.logger.write_row([timestamp, current, voltage])
+                    self.csv_logger.write_row([timestamp, current, voltage])
 
                 self.update_plot()
                 time.sleep(self.interval.get())
 
             except Exception as e:
-                print("Measurement error:", e)
+                self.logger.exception("Measurement error:", e)
                 self.running = False
                 break
 
@@ -240,5 +286,6 @@ class CurrentCycleApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.title("Current Source")
     app = CurrentCycleApp(root)
     root.mainloop()

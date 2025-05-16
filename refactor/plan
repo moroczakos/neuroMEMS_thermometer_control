@@ -1,0 +1,35 @@
+/apps
+    TemperatureMeasurementStationApp.py  → entry point, high-level app setup
+/core
+    /ui
+        main_window.py                  → main Tkinter layout and container logic
+        thermometer_panel.py           → UI component class for thermometer
+        current_source_panel.py        → UI component class for current cycle
+    /services
+        temperature_service.py         → business logic for temperature management
+        current_source_service.py      → logic for current control
+
+
+TemperatureMeasurementStationApp_Refactored/
+├── core/
+│   ├── services/
+│   │   ├── current_source_service.py
+│   │   └── thermometer_service.py
+│   └── ui/
+│       ├── current_source_panel.py
+│       ├── thermometer_panel.py
+│       └── main_window.py
+├── instruments/
+│   └── instrument_manager.py
+├── utils/
+│   ├── file_utils.py
+│   ├── logger_manager.py
+│   ├── plot_utils.py
+│   ├── settings_utils.py
+│   └── ui_utils/
+│       └── logger_panel.py
+├── input_files/
+│   └── settings.json
+├── output_files/
+└── TemperatureMeasurementStationApp.py
+

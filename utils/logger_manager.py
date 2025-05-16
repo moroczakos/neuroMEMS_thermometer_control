@@ -3,7 +3,7 @@ import logging
 
 class LoggerManager:
     def __init__(self, log_file="app.log"):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(f"{id(self)}")
         self.logger.setLevel(logging.INFO)
 
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')

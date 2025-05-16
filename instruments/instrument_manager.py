@@ -1,13 +1,14 @@
 import pyvisa
 from tkinter import messagebox
 from instruments.handlers.dmm_handler import DMMHandler
-from instruments.handlers.source_handler import SourceHandler
+from instruments.handlers.source_handler import SourceHandler6221, SourceHandler2635
 
 
 class InstrumentManager:
     handler_registry = {
         "dmm": DMMHandler,
-        "source": SourceHandler
+        "source_6221": SourceHandler6221,
+        "source_2635": SourceHandler2635
     }
 
     def __init__(self, allow_mock=True):
@@ -20,12 +21,21 @@ class InstrumentManager:
             resources = self.rm.list_resources()
             if only_tcpip:
                 resources = [r for r in resources if r.startswith("TCPIP")]
-            if self.allow_mock:
-                resources = ("MOCK",) + tuple(resources)
             return resources
         except Exception as e:
             messagebox.showerror("VISA Error", f"Could not list VISA resources:\n{e}")
             return []
+
+    def get_instrument_model(self, resource):
+        try:
+            instrument = self.rm.open_resource(resource)
+            idn = instrument.query("*IDN?")
+            self.rm.close()
+            manufacturer, model, serial, firmware = idn.split(',')
+            return model
+        except Exception as e:
+            messagebox.showerror("Model number error", f"Could not check the model number of the instrument:\n{e}")
+            return None
 
     def connect(self, alias, address, role):
         if role not in self.handler_registry:
@@ -33,7 +43,7 @@ class InstrumentManager:
 
         try:
             handler_cls = self.handler_registry[role]
-            handler = handler_cls(address, use_mock = (address == "MOCK"))
+            handler = handler_cls(address, use_mock = ("MOCK" in address))
             instr = handler.connect(self.rm)
             self.handlers[alias] = handler
             return instr
