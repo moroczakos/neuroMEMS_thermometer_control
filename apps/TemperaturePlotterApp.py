@@ -11,8 +11,8 @@ from utils.ui_utils.logger_panel import LoggingPanel
 class TemperaturePlotterApp:
     def __init__(self, root):
         """Initialize the GUI app."""
-        self.root = root
-        self.root.title("CSV File Plotter")
+        self.root = Frame(root)
+        self.root.pack(fill = 'both', expand = True)
 
         self.file_path = None  # To store the file path selected by user
         self.plot_toolbar = None  # Toolbar for the plot (if it exists)
@@ -187,5 +187,6 @@ class TemperaturePlotterApp:
 if __name__ == "__main__":
     # Create and run the Tkinter application
     root = Tk()
+    root.title("CSV File Plotter")
     app = TemperaturePlotterApp(root)
     root.mainloop()

@@ -147,5 +147,6 @@ class TemperatureByRecalibratedProbeDataApp:
 if __name__ == "__main__":
     # Create and run the Tkinter application
     root = Tk()
+    root.title("Temperature by recalibrated probe data app")
     app = TemperatureByRecalibratedProbeDataApp(root)
     root.mainloop()

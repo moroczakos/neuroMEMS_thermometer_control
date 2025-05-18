@@ -4,11 +4,9 @@ from apps.CurrentSourceApp import CurrentCycleApp
 from apps.ThermometerApp import ThermometerApp
 
 
-class MainApp:
+class TemperatureMeasurementStationApp:
     def __init__(self, root):
         self.root = root
-        self.root.geometry("1600x900")
-        self.root.title("Temperature measurement station app")
 
         # Create container frames
         self.left_frame = ttk.Frame(root, width = 400)
@@ -53,5 +51,7 @@ class MainApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = MainApp(root)
+    root.geometry("1600x900")
+    root.title("Temperature measurement station app")
+    app = TemperatureMeasurementStationApp(root)
     root.mainloop()
