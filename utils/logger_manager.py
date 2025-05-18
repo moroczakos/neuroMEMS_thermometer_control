@@ -2,7 +2,7 @@ import logging
 
 
 class LoggerManager:
-    def __init__(self, log_file="app.log"):
+    def __init__(self, log_file="../logs/app.log"):
         self.logger = logging.getLogger(f"{id(self)}")
         self.logger.setLevel(logging.INFO)
 

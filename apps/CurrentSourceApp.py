@@ -6,7 +6,7 @@ import time
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
 from utils.measurement_profile import MeasurementProfile
-from utils.plot_utils import create_single_axis_plot, update_plot, create_dual_axis_plot
+from utils.plot_utils import update_plot, create_dual_axis_plot
 import os
 from utils.settings_utils import SettingManager
 from utils.logger_manager import LoggerManager
@@ -28,7 +28,7 @@ class CurrentCycleApp:
 
         # Logger
         self.csv_logger = CsvLogger()
-        self.logger = LoggerManager(log_file = "current_source_app.log").get_logger()
+        self.logger = LoggerManager(log_file = "../logs/current_source_app.log").get_logger()
 
         # Instrument
         self.instrument_manager = InstrumentManager()

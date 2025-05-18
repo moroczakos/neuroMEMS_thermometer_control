@@ -65,6 +65,7 @@ class TemperaturePlotterApp:
         if self.file_path:
             self.file_label.config(text = f"Selected File: {os.path.basename(self.file_path)}")
             self.plot_data()
+            self.logger.info(f"Selected File: {os.path.basename(self.file_path)}")
         else:
             self.file_label.config(text = "No file selected.")
             self.logger.warning("No file was selected.")

@@ -28,7 +28,7 @@ class ThermometerApp:
         # Logger
         self.csv_logger = CsvLogger()  # Save timestamps, resistance, temperature
         self.raw_csv_logger = CsvLogger()  # Save timestamps, resistance,
-        self.logger = LoggerManager(log_file = "thermometer_app.log").get_logger()
+        self.logger = LoggerManager(log_file = "../logs/thermometer_app.log").get_logger()
 
         # Instrument
         self.instrument_manager = InstrumentManager()
@@ -212,7 +212,7 @@ class ThermometerApp:
         self.stop_button.config(state = "normal")
         self.disable_preview()
 
-        self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
+        self.csv_logger.create(f"log_{self.selected_probe.get()}_{self.profile.name.replace('/', '_')}", self.profile.headers,
                                self.output_file_path)
         self.raw_csv_logger.create(f"log_Resistance", self.profile.headers[0:2],
                                    self.output_file_path)
