@@ -1,18 +1,21 @@
+import queue
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import time
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
-from utils.plot_utils import create_single_axis_plot, update_plot
+from utils.measurement_profile import MeasurementProfile
+from utils.plot_utils import create_single_axis_plot, update_plot, create_dual_axis_plot
 import os
 from utils.settings_utils import SettingManager
 from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
+from concurrent.futures import ThreadPoolExecutor
 
 
 class CurrentCycleApp:
-    def __init__(self, root, main_app = None):
+    def __init__(self, root, main_app=None):
         self.main_app = main_app
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
@@ -27,7 +30,7 @@ class CurrentCycleApp:
         self.csv_logger = CsvLogger()
         self.logger = LoggerManager(log_file = "current_source_app.log").get_logger()
 
-        # Instrument Setup
+        # Instrument
         self.instrument_manager = InstrumentManager()
         self.instrument_alias = None
 
@@ -44,8 +47,22 @@ class CurrentCycleApp:
 
         # Data
         self.timestamps = []
-        self.currents = []
-        self.current_current = tk.DoubleVar()
+        self.current_y1_data = []
+        self.voltage_y2_data = []
+        self.data_queue = queue.Queue()
+        self.current_y1 = tk.DoubleVar()
+        self.voltage_y2 = tk.DoubleVar()
+        self.executor = None
+
+        # Define measurement profile
+        self.profile = MeasurementProfile(
+            name = "Current/Voltage/Resistance",
+            headers = ["Timestamp", "Current (A)", "Voltage (V)", "Resistance (Ohms)"],
+            y1_label = "Current (A)",
+            y2_label = "Voltage (V)",
+            measure_func = lambda source: source.measure(),
+            post_process_func = lambda a, v: v / a if v is not None else float('nan')
+        )
 
         self.create_widgets()
         self.setup_plot()
@@ -120,8 +137,12 @@ class CurrentCycleApp:
         self.stop_button.grid(row = 5, column = 5)
 
         ttk.Label(frame, text = "Live current (A):").grid(row = 6, column = 0, sticky = 'e')
-        ttk.Label(frame, textvariable = self.current_current, foreground = 'blue').grid(row = 6, column = 1,
-                                                                                        sticky = 'w')
+        ttk.Label(frame, textvariable = self.current_y1, foreground = 'blue').grid(row = 6, column = 1,
+                                                                                   sticky = 'w')
+
+        ttk.Label(frame, text = "Live voltage (V):").grid(row = 6, column = 2, sticky = 'e')
+        ttk.Label(frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = 6, column = 3,
+                                                                                    sticky = 'w')
 
     def load_visa_resources(self):
         resources = self.instrument_manager.list_resources(only_tcpip = True)
@@ -139,18 +160,65 @@ class CurrentCycleApp:
             self.logger.warning(f"Failed to save setting '{name}': {e}")
 
     def setup_plot(self):
-        _, self.ax, self.line, self.canvas = create_single_axis_plot(self.root,
-                                                                     "Live Current Plot",
-                                                                     "Time (s)",
-                                                                     "Current (A)")
+        _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
+            self.root, f"Live {self.profile.name}", "Time (s)", self.profile.y1_label, self.profile.y2_label, "blue",
+            "black")
+        self.lines = [line1, line2]
+        self.axes = [ax1, ax2]
+
+    def perform_measurement(self):
+        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+        y1, y2 = self.profile.measure_func(source_handler)
+        y3 = self.profile.post_process_func(y1, y2) if self.profile.post_process_func else None
+        self.current_y1.set(round(y1, 4))
+        self.voltage_y2.set(round(y2, 2) if y2 is not None else float('nan'))
+        return y1, y2, y3
 
     def start_measurement(self):
-        visa_address = self.visa_resource.get()
-        if "No VISA" in visa_address or not visa_address.strip():
-            self.logger.exception("Please select a valid VISA resource.")
-            messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
+        if not self._connect():
             return
 
+        self.running = True
+        self.start_button.config(state = "disabled")
+        self.stop_button.config(state = "normal")
+
+        # File setup
+        self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
+                               self.output_file_path)
+
+        self.timestamps = []
+        self.current_y1_data = []
+        self.voltage_y2_data = []
+        self.start_time = time.time()
+
+        self.executor = ThreadPoolExecutor(max_workers = 4)
+        threading.Thread(target = self.cycle_loop, daemon = True).start()
+        threading.Thread(target = self.data_worker_loop, daemon = True).start()
+        self.logger.info("Started measurement.")
+
+    def stop_measurement(self):
+        if self.running:
+            self.running = False
+            self.start_button.config(state = "normal")
+            self.stop_button.config(state = "disabled")
+
+            if self.instrument_manager.get_instrument(self.instrument_alias):
+                self.instrument_manager.disconnect(self.instrument_alias)
+
+            self.logger.info("Measurement stopped.")
+
+            if hasattr(self, 'csv_logger'):
+                self.logger.info(f"Data saved to {self.csv_logger.get_filename()}")
+                self.csv_logger.close()
+
+            if self.main_app:
+                self.main_app.stop_apps()  # Stop main app
+
+    def _connect(self):
+        visa_address = self.visa_resource.get()
+        if "No VISA" in visa_address or not visa_address.strip():
+            messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
+            return False
         try:
             if "6221" in visa_address:
                 model = "6221"
@@ -170,43 +238,12 @@ class CurrentCycleApp:
                 return
 
             self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
-
-            self.running = True
-            self.start_button.config(state = "disabled")
-            self.stop_button.config(state = "normal")
-
-            # File setup
-            self.csv_logger.create("current_log",
-                                   ['Timestamp', 'Current (A)', 'Voltage (V)'],
-                                   self.output_file_path)
-
-            self.timestamps = []
-            self.currents = []
-            self.start_time = time.time()
-
-            threading.Thread(target = self.cycle_loop, daemon = True).start()
-            self.logger.info(f"Starting measurement on VISA: {visa_address}")
+            self.logger.info(f"Connected to VISA resource: {visa_address}")
+            return True
         except Exception as e:
-            self.logger.exception(f"Could not open VISA resource:\n{e}")
+            self.logger.error(f"Connection error: {e}")
             messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
-
-    def stop_measurement(self):
-        if self.running:
-            self.running = False
-            self.start_button.config(state = "normal")
-            self.stop_button.config(state = "disabled")
-
-            if self.instrument_manager.get_instrument(self.instrument_alias):
-                self.instrument_manager.disconnect(self.instrument_alias)
-
-            self.logger.info("Measurement stopped.")
-
-            if hasattr(self, 'csv_logger'):
-                self.logger.info(f"Data saved to {self.csv_logger.get_filename()}")
-                self.csv_logger.close()
-
-            if self.main_app:
-                self.main_app.stop_apps()  # Stop main app
+            return False
 
     def update_start_low(self):
         # Update self.start_low based on the checkbox state
@@ -243,45 +280,71 @@ class CurrentCycleApp:
             self.stop_measurement()
 
     def measure_loop(self):
-        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+        self.data_counter = 0
+        self.total_y1 = 0.0
+        self.total_y2 = 0.0
 
         while self.running:
             try:
-                # Resistance computation
-                total_current = 0.0
-                total_voltage = 0.0
-                for _ in range(self.average_count.get()):
-                    volt, curr = source_handler.measure()
-                    total_current += curr
-                    if volt:
-                        total_voltage += volt
-                    time.sleep(0.01)
-                current = total_current / self.average_count.get()
-                voltage = total_voltage / self.average_count.get()
+                y1, y2, y3 = self.perform_measurement()
                 timestamp = time.time() - self.start_time
-
-                self.timestamps.append(timestamp)
-                self.currents.append(current)
-
-                self.current_current.set(round(current, 2))
-
-                if self.running:
-                    self.csv_logger.write_row([timestamp, current, voltage])
-
-                self.update_plot()
+                self.data_queue.put(
+                    (timestamp,
+                     y1,
+                     y2 if y2 is not None else float('nan'),
+                     y3 if y3 is not None else float('nan')))
                 time.sleep(self.interval.get())
-
             except Exception as e:
-                self.logger.exception("Measurement error:", e)
                 self.running = False
+                self.logger.error(f"Measurement error: {e}")
+
+                error = self.instrument_manager.get_error(self.instrument_alias)
+                if error:
+                    self.logger.error(error)
                 break
 
+    def data_worker_loop(self):
+        MAX_QUEUE_SIZE = 100
+        while self.running or not self.data_queue.empty():
+            try:
+                if self.data_queue.qsize() > MAX_QUEUE_SIZE:
+                    self.logger.warning("⚠️ Queue backlog detected!")
+                timestamp, y1, y2, y3 = self.data_queue.get(timeout = 0.5)
+                if self.running:
+                    self.executor.submit(self.safe_log, timestamp, y1, y2, y3)
+                    self.executor.submit(self.safe_plot, timestamp, y1, y2)
+            except queue.Empty:
+                continue
+
+    def safe_log(self, timestamp, y1, y2, y3):
+        try:
+            self.csv_logger.write_row([timestamp, y1, y2, y3])
+        except Exception as e:
+            self.logger.error(f"Logging error: {e}")
+
+    def safe_plot(self, timestamp, y1, y2):
+        try:
+            avg_count = self.average_count.get()
+            self.data_counter += 1
+            self.total_y1 += y1
+            self.total_y2 += y2
+            if self.data_counter >= avg_count:
+                self.timestamps.append(timestamp)
+                self.current_y1_data.append(self.total_y1 / avg_count)
+                self.voltage_y2_data.append(self.total_y2 / avg_count)
+                self.data_counter = 0
+                self.total_y1 = 0.0
+                self.total_y2 = 0.0
+                self.update_plot()
+        except Exception as e:
+            self.logger.error(f"Plotting error: {e}")
+
     def update_plot(self):
-        curr_data = (self.timestamps, self.currents)
-
-        line_data_pairs = [(self.line, curr_data)]
-
-        update_plot(line_data_pairs, [self.ax], self.canvas)
+        line_data_pairs = [
+            (self.lines[0], (self.timestamps, self.current_y1_data)),
+            (self.lines[1], (self.timestamps, self.voltage_y2_data))
+        ]
+        update_plot(line_data_pairs, self.axes, self.canvas)
 
 
 if __name__ == "__main__":

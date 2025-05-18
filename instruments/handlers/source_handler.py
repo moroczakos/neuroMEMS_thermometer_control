@@ -25,7 +25,7 @@ class SourceHandler6221(InstrumentHandler):
 
     def measure(self):
         # No measurement
-        return None, self.current
+        return self.current, None
 
     def close(self):
         if self.instrument:
@@ -74,7 +74,7 @@ class SourceHandler2635(InstrumentHandler):
         voltage = float(instr.query("smua.measure.v()"))
         resistance = float(instr.query("smua.measure.r()"))
 
-        return voltage, current#, resistance
+        return current, voltage#, resistance
 
     def close(self):
         if self.instrument:

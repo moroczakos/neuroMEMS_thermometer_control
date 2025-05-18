@@ -11,20 +11,11 @@ from utils.plot_utils import create_dual_axis_plot, update_plot
 from utils.settings_utils import load_probe_data, SettingManager
 from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
-
-
-class MeasurementProfile:
-    def __init__(self, name, headers, y1_label, y2_label, measure_func, post_process_func=None):
-        self.name = name
-        self.headers = headers
-        self.y1_label = y1_label
-        self.y2_label = y2_label
-        self.measure_func = measure_func
-        self.post_process_func = post_process_func
+from utils.measurement_profile import MeasurementProfile
 
 
 class ThermometerApp:
-    def __init__(self, root, main_app = None):
+    def __init__(self, root, main_app=None):
         self.main_app = main_app
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
@@ -35,7 +26,8 @@ class ThermometerApp:
         self.setting_manager = SettingManager(os.path.join(self.input_file_path, 'settings.json'))
 
         # Logger
-        self.csv_logger = CsvLogger()
+        self.csv_logger = CsvLogger()  # Save timestamps, resistance, temperature
+        self.raw_csv_logger = CsvLogger()  # Save timestamps, resistance,
         self.logger = LoggerManager(log_file = "thermometer_app.log").get_logger()
 
         # Instrument
@@ -57,11 +49,11 @@ class ThermometerApp:
 
         # Data containers
         self.timestamps = []
-        self.y1_data = []
-        self.y2_data = []
+        self.resistance_y1_data = []
+        self.temperature_y2_data = []
         self.data_queue = queue.Queue()
-        self.current_y1 = tk.DoubleVar()
-        self.current_y2 = tk.DoubleVar()
+        self.resistance_y1 = tk.DoubleVar()
+        self.temperature_y2 = tk.DoubleVar()
         self.executor = None
 
         # Define measurement profile
@@ -123,9 +115,9 @@ class ThermometerApp:
         self.stop_button.grid(row = 2, column = 5)
 
         ttk.Label(frame, text = f"Live {self.profile.y1_label}:").grid(row = 3, column = 0, sticky = 'e')
-        ttk.Label(frame, textvariable = self.current_y1).grid(row = 3, column = 1, sticky = 'w')
+        ttk.Label(frame, textvariable = self.resistance_y1).grid(row = 3, column = 1, sticky = 'w')
         ttk.Label(frame, text = f"Live {self.profile.y2_label}:").grid(row = 3, column = 2, sticky = 'e')
-        ttk.Label(frame, textvariable = self.current_y2, foreground = 'red').grid(row = 3, column = 3, sticky = 'w')
+        ttk.Label(frame, textvariable = self.temperature_y2, foreground = 'red').grid(row = 3, column = 3, sticky = 'w')
 
         self.preview_start_button = ttk.Button(frame, text = "Start Preview", command = self.start_preview)
         self.preview_start_button.grid(row = 3, column = 4)
@@ -163,8 +155,8 @@ class ThermometerApp:
         dmm_handler = self.instrument_manager.get_handler("dmm")
         y1 = self.profile.measure_func(dmm_handler)
         y2 = self.profile.post_process_func(y1, self.R0.get(), self.TCR.get()) if self.profile.post_process_func else y1
-        self.current_y1.set(round(y1, 4))
-        self.current_y2.set(round(y2, 2))
+        self.resistance_y1.set(round(y1, 4))
+        self.temperature_y2.set(round(y2, 2))
         return y1, y2
 
     def update_probe_values(self, event=None):
@@ -222,9 +214,11 @@ class ThermometerApp:
 
         self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
                                self.output_file_path)
+        self.raw_csv_logger.create(f"log_Resistance", self.profile.headers[0:2],
+                                   self.output_file_path)
         self.timestamps.clear()
-        self.y1_data.clear()
-        self.y2_data.clear()
+        self.resistance_y1_data.clear()
+        self.temperature_y2_data.clear()
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
@@ -243,7 +237,9 @@ class ThermometerApp:
             if self.executor:
                 self.executor.shutdown(wait = False)
             self.csv_logger.close()
-            self.logger.info(f"Measurement stopped. Data saved to {self.csv_logger.get_filename()}")
+            self.raw_csv_logger.close()
+            self.logger.info(
+                f"Measurement stopped. Data saved to {self.csv_logger.get_filename()} and {self.raw_csv_logger.get_filename()}")
 
             if self.main_app:
                 self.main_app.stop_apps()  # Stop main app
@@ -266,6 +262,7 @@ class ThermometerApp:
         self.data_counter = 0
         self.total_y1 = 0.0
         self.total_y2 = 0.0
+
         while self.running:
             try:
                 y1, y2 = self.perform_measurement()
@@ -297,6 +294,7 @@ class ThermometerApp:
     def safe_log(self, timestamp, y1, y2):
         try:
             self.csv_logger.write_row([timestamp, y1, y2])
+            self.raw_csv_logger.write_row([timestamp, y1])
         except Exception as e:
             self.logger.error(f"Logging error: {e}")
 
@@ -308,8 +306,8 @@ class ThermometerApp:
             self.total_y2 += y2
             if self.data_counter >= avg_count:
                 self.timestamps.append(timestamp)
-                self.y1_data.append(self.total_y1 / avg_count)
-                self.y2_data.append(self.total_y2 / avg_count)
+                self.resistance_y1_data.append(self.total_y1 / avg_count)
+                self.temperature_y2_data.append(self.total_y2 / avg_count)
                 self.data_counter = 0
                 self.total_y1 = 0.0
                 self.total_y2 = 0.0
@@ -319,8 +317,8 @@ class ThermometerApp:
 
     def update_plot(self):
         line_data_pairs = [
-            (self.lines[0], (self.timestamps, self.y1_data)),
-            (self.lines[1], (self.timestamps, self.y2_data))
+            (self.lines[0], (self.timestamps, self.resistance_y1_data)),
+            (self.lines[1], (self.timestamps, self.temperature_y2_data))
         ]
         update_plot(line_data_pairs, self.axes, self.canvas)
 
