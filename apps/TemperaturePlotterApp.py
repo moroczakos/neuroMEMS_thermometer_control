@@ -2,7 +2,8 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from tkinter import Tk, filedialog, Button, Label, Frame, Spinbox, IntVar, StringVar, Entry
+from tkinter import Tk, filedialog, Button, Label, Frame, Spinbox, IntVar, StringVar, Entry, Checkbutton
+from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
@@ -18,6 +19,15 @@ class TemperaturePlotterApp:
         self.plot_toolbar = None  # Toolbar for the plot (if it exists)
         self.degree_var = IntVar(value = 1)  # Default polynomial degree value
         self.smoothing_var = StringVar(value = "50")  # Default smoothing window value (as string)
+
+        # Checkbox variables for showing/hiding plot elements
+        self.show_temp = IntVar(value = 1)
+        self.show_compensated = IntVar(value = 1)
+        self.show_drift = IntVar(value = 1)
+        self.show_smoothed = IntVar(value = 1)
+        self.show_transitions = IntVar(value = 1)
+        self.show_title = IntVar(value = 1)
+        self.show_legend = IntVar(value = 1)
 
         self.logger = LoggerManager().get_logger()
 
@@ -38,6 +48,26 @@ class TemperaturePlotterApp:
 
         self.plot_frame = Frame(self.root)  # Frame to hold the plot
         self.plot_frame.pack(padx = 10, pady = 10, fill = 'both', expand = True)
+
+        checkbox_frame = Frame(self.root)
+        checkbox_frame.pack(pady = 5)
+
+        Label(checkbox_frame, text = "Show:").pack(side = "left", padx = (0, 10))
+        text_width = 10
+        Checkbutton(checkbox_frame, text = "Raw Temp", variable = self.show_temp,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Compensated", variable = self.show_compensated,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Drift", variable = self.show_drift,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Smoothed", variable = self.show_smoothed,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Transitions", variable = self.show_transitions,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Title", variable = self.show_title,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Legend", variable = self.show_legend,
+                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
 
         controls_frame = Frame(self.root)  # Frame for control widgets (spinboxes, buttons, etc.)
         controls_frame.pack(pady = 10)
@@ -81,8 +111,22 @@ class TemperaturePlotterApp:
         try:
             df = pd.read_csv(self.file_path)
             self.logger.info("CSV file successfully read into DataFrame.")
-            time = df['Timestamp']
-            temp = df['Temperature (°C)']
+            try:
+                time = df['Timestamp']
+            except Exception as e:
+                messagebox.showerror("No time data",
+                                     f"The imported csv file does not contain 'Timestamp' column.")
+                self.logger.error(f"Error while plotting data: {e}", exc_info = True)
+                return
+
+            try:
+                temp = df['Temperature (Celsius)']
+            except Exception as e:
+                messagebox.showerror("No temperature data",
+                                     f"The imported csv file does not contain 'Temperature (Celsius)' column.")
+                self.logger.error(f"Error while plotting data: {e}", exc_info = True)
+                return
+
             poly_degree = self.degree_var.get()
             smoothing_window = self.get_smoothing_window()
 
@@ -147,22 +191,31 @@ class TemperaturePlotterApp:
 
     def draw_plot(self, time, temp, drift, compensated, smoothed, transitions, avg_amp, degree):
         """Draw the temperature vs time plot with various corrections applied."""
-        fig, ax = plt.subplots(figsize = (8, 6))
+        fig, ax = plt.subplots()
 
         # Plot various temperature signals
-        ax.plot(time, temp, label = 'Temperature (°C)', color = 'red')
-        ax.plot(time, compensated, label = f'Compensated (Degree {degree})', color = 'blue')
-        ax.plot(time, drift, label = f'Drift (Degree {degree})', color = 'black')
-        ax.plot(time, smoothed, label = 'Smoothed', color = 'green')
+        if self.show_temp.get():
+            ax.plot(time, temp, label = 'Temperature (°C)', color = 'red')
+        if self.show_compensated.get():
+            ax.plot(time, compensated, label = f'Compensated (Degree {degree})', color = 'blue')
+        if self.show_drift.get():
+            ax.plot(time, drift, label = f'Drift (Degree {degree})', color = 'black')
+        if self.show_smoothed.get():
+            ax.plot(time, smoothed, label = 'Smoothed', color = 'green')
 
         # Mark transition points on the plot
-        ax.plot(time[transitions], [np.mean(smoothed)] * len(transitions), "k*", label = "Transitions")
+        if self.show_transitions.get():
+            ax.plot(time[transitions], [np.mean(smoothed)] * len(transitions), "k*", label = "Transitions")
 
+        # Title and axes labels
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Temperature (°C)')
-        ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C')
+        if self.show_title.get():
+            ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C')
         ax.grid(True)
-        ax.legend()
+
+        if self.show_legend.get():
+            ax.legend()
 
         # Clear any existing plot in the plot_frame (if re-plotting)
         for widget in self.plot_frame.winfo_children():
@@ -173,13 +226,10 @@ class TemperaturePlotterApp:
         canvas.draw()
         canvas.get_tk_widget().pack(fill = 'both', expand = True)
 
-        # Initialize the plot toolbar if it does not already exist
-        if self.plot_toolbar is None:
-            toolbar_frame = Frame(self.root)
-            toolbar_frame.pack(fill = 'x', pady = 10)
-            self.plot_toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
-            self.plot_toolbar.update()
-            self.plot_toolbar.pack(side = 'top', fill = 'x')
+        self.plot_frame.pack(fill = 'x', pady = 10)
+        self.plot_toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+        self.plot_toolbar.update()
+        self.plot_toolbar.pack(side = 'top', fill = 'x')
 
         canvas.get_tk_widget().pack()
 

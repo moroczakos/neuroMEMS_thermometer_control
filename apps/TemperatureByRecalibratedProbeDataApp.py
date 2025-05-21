@@ -100,8 +100,8 @@ class TemperatureByRecalibratedProbeDataApp:
 
                 # Ensure 'Temperature (°C)' is not duplicated
                 fieldnames = reader.fieldnames.copy()
-                if 'Temperature (°C)' not in fieldnames:
-                    fieldnames.append('Temperature (°C)')
+                if 'Temperature (Celsius)' not in fieldnames:
+                    fieldnames.append('Temperature (Celsius)')
 
                 writer = csv.DictWriter(outfile, fieldnames = fieldnames)
 
@@ -109,7 +109,7 @@ class TemperatureByRecalibratedProbeDataApp:
                 for row in reader:
                     resistance = float(row['Resistance (Ohms)'])
                     temperature = (resistance / self.R0.get() - 1) / self.TCR.get()
-                    row['Temperature (°C)'] = temperature
+                    row['Temperature (Celsius)'] = temperature
                     writer.writerow(row)
 
             self.logger.info(f"Recalibrated data saved to: {output_csv}")
