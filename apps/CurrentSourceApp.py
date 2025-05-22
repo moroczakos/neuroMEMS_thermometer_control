@@ -1,5 +1,6 @@
 import queue
 import tkinter as tk
+import traceback
 from tkinter import ttk, messagebox
 import threading
 import time
@@ -11,6 +12,7 @@ import os
 from utils.settings_utils import SettingManager
 from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
+from utils.other_utils import get_widget_value
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -44,6 +46,9 @@ class CurrentCycleApp:
         self.cycles = tk.IntVar(value = self.setting_manager.load_setting("cycles"))
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
+
+        self.interval_curr = self.interval
+        self.average_count_curr = self.average_count
 
         # Data
         self.timestamps = []
@@ -94,27 +99,33 @@ class CurrentCycleApp:
                                                                                                         columnspan = 6)
 
         ttk.Label(frame, text = "High Current (A):").grid(row = 2, column = 0)
-        ttk.Entry(frame, textvariable = self.current_high, width = 6, justify = 'center').grid(row = 2, column = 1)
+        self.c_high_entry = ttk.Entry(frame, textvariable = self.current_high, width = 6, justify = 'center')
+        self.c_high_entry.grid(row = 2, column = 1)
         self.current_high.trace("w", lambda *args: self.save_entry_value("current_high", self.current_high))
 
         ttk.Label(frame, text = "Low Current (A):").grid(row = 2, column = 2)
-        ttk.Entry(frame, textvariable = self.current_low, width = 6, justify = 'center').grid(row = 2, column = 3)
+        self.c_low_entry = ttk.Entry(frame, textvariable = self.current_low, width = 6, justify = 'center')
+        self.c_low_entry.grid(row = 2, column = 3)
         self.current_low.trace("w", lambda *args: self.save_entry_value("current_low", self.current_low))
 
         self.start_low_var = tk.BooleanVar(value = self.start_low)
         ttk.Label(frame, text = "Starts with low current:", ).grid(row = 2, column = 4)
-        ttk.Checkbutton(frame, variable = self.start_low_var, command = self.update_start_low).grid(row = 2, column = 5)
+        self.start_low_cbutton = ttk.Checkbutton(frame, variable = self.start_low_var, command = self.update_start_low)
+        self.start_low_cbutton.grid(row = 2, column = 5)
 
         ttk.Label(frame, text = "High Duration (s):").grid(row = 3, column = 0)
-        ttk.Entry(frame, textvariable = self.duration_high, width = 6, justify = 'center').grid(row = 3, column = 1)
+        self.d_high_entry = ttk.Entry(frame, textvariable = self.duration_high, width = 6, justify = 'center')
+        self.d_high_entry.grid(row = 3, column = 1)
         self.duration_high.trace("w", lambda *args: self.save_entry_value("duration_high", self.duration_high))
 
         ttk.Label(frame, text = "Low Duration (s):").grid(row = 3, column = 2)
-        ttk.Entry(frame, textvariable = self.duration_low, width = 6, justify = 'center').grid(row = 3, column = 3)
+        self.d_low_entry = ttk.Entry(frame, textvariable = self.duration_low, width = 6, justify = 'center')
+        self.d_low_entry.grid(row = 3, column = 3)
         self.duration_low.trace("w", lambda *args: self.save_entry_value("duration_low", self.duration_low))
 
         ttk.Label(frame, text = "Cycles:").grid(row = 3, column = 4)
-        ttk.Entry(frame, textvariable = self.cycles, width = 6, justify = 'center').grid(row = 3, column = 5, pady = 10)
+        self.cycles_entry = ttk.Entry(frame, textvariable = self.cycles, width = 6, justify = 'center')
+        self.cycles_entry.grid(row = 3, column = 5, pady = 10)
         self.cycles.trace("w", lambda *args: self.save_entry_value("cycles", self.cycles))
 
         # Current measurement settings
@@ -145,19 +156,21 @@ class CurrentCycleApp:
                                                                                     sticky = 'w')
 
     def load_visa_resources(self):
-        resources = self.instrument_manager.list_resources(only_tcpip = True)
+        resources = self.instrument_manager.list_resources(only_tcpip = False)
         if self.instrument_manager.allow_mock:
-            resources = ("MOCK_6221", "MOCK_2635") + tuple(resources)
+            resources = ("MOCK_6221", "MOCK_2611") + tuple(resources)
         self.visa_dropdown['values'] = resources
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
         self.logger.info(f"Loaded VISA resources: {resources}")
 
     def save_entry_value(self, name, value):
         try:
-            self.setting_manager.save_setting(name, value.get())
-            self.logger.info(f"Saved setting '{name}': {value.get()}")
+            v = get_widget_value(value)
+            if v is not None:
+                self.setting_manager.save_setting(name, v)
+                self.logger.info(f"Saved setting '{name}': {v}")
         except Exception as e:
-            self.logger.warning(f"Failed to save setting '{name}': {e}")
+            self.logger.warning(f"Failed to save setting '{name}': {e}\n {traceback.format_exc()}")
 
     def setup_plot(self):
         _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
@@ -179,8 +192,16 @@ class CurrentCycleApp:
             return
 
         self.running = True
+
+        # Control widget accessibility
         self.start_button.config(state = "disabled")
         self.stop_button.config(state = "normal")
+        self.c_high_entry.config(state = "disabled")
+        self.c_low_entry.config(state = "disabled")
+        self.start_low_cbutton.config(state = "disabled")
+        self.d_high_entry.config(state = "disabled")
+        self.d_low_entry.config(state = "disabled")
+        self.cycles_entry.config(state = "disabled")
 
         # File setup
         self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
@@ -199,8 +220,16 @@ class CurrentCycleApp:
     def stop_measurement(self):
         if self.running:
             self.running = False
+
+            # Control widget accessibility
             self.start_button.config(state = "normal")
             self.stop_button.config(state = "disabled")
+            self.c_high_entry.config(state = "normal")
+            self.c_low_entry.config(state = "normal")
+            self.start_low_cbutton.config(state = "normal")
+            self.d_high_entry.config(state = "normal")
+            self.d_low_entry.config(state = "normal")
+            self.cycles_entry.config(state = "normal")
 
             if self.instrument_manager.get_instrument(self.instrument_alias):
                 self.instrument_manager.disconnect(self.instrument_alias)
@@ -222,26 +251,27 @@ class CurrentCycleApp:
         try:
             if "6221" in visa_address:
                 model = "6221"
-            elif "2635" in visa_address:
-                model = "2635"
+            elif "2611" in visa_address:
+                model = "2611"
             else:
                 model = self.instrument_manager.get_instrument_model(visa_address)
 
-            if model == "6221":
+            if "6221" in model:
                 self.instrument_alias = "source_6221"
-            elif model == "2635":
-                self.instrument_alias = "source_2635"
+            elif "2611" in model:
+                self.instrument_alias = "source_2611"
             else:
-                self.logger.exception(f"Not known model: {model}. Known models are 6221 and 2635")
+                self.logger.exception(
+                    f"Not known model: {model}. Known models are 6221 and 2611\n {traceback.format_exc()}")
                 messagebox.showerror("Not known model error",
-                                     f"Not known model: {model}. Known models are 6221 and 2635")
+                                     f"Not known model: {model}. Known models are 6221 and 2611")
                 return
 
             self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
             self.logger.info(f"Connected to VISA resource: {visa_address}")
             return True
         except Exception as e:
-            self.logger.error(f"Connection error: {e}")
+            self.logger.error(f"Connection error: {e}\n {traceback.format_exc()}")
             messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
             return False
 
@@ -273,7 +303,7 @@ class CurrentCycleApp:
                 source_handler.set_current(second_current)
                 time.sleep(second_duration)
         except Exception as e:
-            self.logger.exception("Cycle Error", str(e))
+            self.logger.exception(f"Cycle Error {e}\n {traceback.format_exc()}")
             messagebox.showerror("Cycle Error", str(e))
 
         if self.running:
@@ -293,10 +323,14 @@ class CurrentCycleApp:
                      y1,
                      y2 if y2 is not None else float('nan'),
                      y3 if y3 is not None else float('nan')))
-                time.sleep(self.interval.get())
+
+                interval = get_widget_value(self.interval)
+                if interval is not None:
+                    self.interval_curr = interval
+                time.sleep(self.interval_curr)
             except Exception as e:
                 self.running = False
-                self.logger.error(f"Measurement error: {e}")
+                self.logger.error(f"Measurement error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error(self.instrument_alias)
                 if error:
@@ -320,24 +354,27 @@ class CurrentCycleApp:
         try:
             self.csv_logger.write_row([timestamp, y1, y2, y3])
         except Exception as e:
-            self.logger.error(f"Logging error: {e}")
+            self.logger.error(f"Logging error: {e}\n {traceback.format_exc()}")
 
     def safe_plot(self, timestamp, y1, y2):
         try:
-            avg_count = self.average_count.get()
+            avg_count = get_widget_value(self.average_count)
+            if avg_count is not None:
+                self.average_count_curr = avg_count
+
             self.data_counter += 1
             self.total_y1 += y1
             self.total_y2 += y2
-            if self.data_counter >= avg_count:
+            if self.data_counter >= self.average_count_curr:
                 self.timestamps.append(timestamp)
-                self.current_y1_data.append(self.total_y1 / avg_count)
-                self.voltage_y2_data.append(self.total_y2 / avg_count)
+                self.current_y1_data.append(self.total_y1 / self.average_count_curr)
+                self.voltage_y2_data.append(self.total_y2 / self.average_count_curr)
                 self.data_counter = 0
                 self.total_y1 = 0.0
                 self.total_y2 = 0.0
                 self.update_plot()
         except Exception as e:
-            self.logger.error(f"Plotting error: {e}")
+            self.logger.error(f"Plotting error: {e}\n {traceback.format_exc()}")
 
     def update_plot(self):
         line_data_pairs = [

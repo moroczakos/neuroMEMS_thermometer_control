@@ -1,4 +1,5 @@
 import tkinter as tk
+import traceback
 from tkinter import ttk, messagebox
 import threading
 import time
@@ -11,6 +12,7 @@ from utils.plot_utils import create_dual_axis_plot, update_plot
 from utils.settings_utils import load_probe_data, SettingManager
 from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
+from utils.other_utils import get_widget_value
 from utils.measurement_profile import MeasurementProfile
 
 
@@ -40,6 +42,9 @@ class ThermometerApp:
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
 
+        self.interval_curr = self.interval
+        self.average_count_curr = self.average_count
+
         # Probes
         self.probes = load_probe_data(os.path.join(self.input_file_path, 'thermoprobes.csv'))
         self.selected_probe = tk.StringVar(value = self.setting_manager.load_setting("probe"))
@@ -59,7 +64,7 @@ class ThermometerApp:
         # Define measurement profile
         self.profile = MeasurementProfile(
             name = "Resistance/Temperature",
-            headers = ["Timestamp", "Resistance (Ohms)", "Temperature (°C)"],
+            headers = ["Timestamp", "Resistance (Ohms)", "Temperature (Celsius)"],
             y1_label = "Resistance (Ohms)",
             y2_label = "Temperature (°C)",
             measure_func = lambda dmm: dmm.measure(),
@@ -140,10 +145,12 @@ class ThermometerApp:
 
     def save_entry_value(self, name, value):
         try:
-            self.setting_manager.save_setting(name, value.get())
-            self.logger.info(f"Saved setting '{name}': {value.get()}")
+            v = get_widget_value(value)
+            if v is not None:
+                self.setting_manager.save_setting(name, v)
+                self.logger.info(f"Saved setting '{name}': {v}")
         except Exception as e:
-            self.logger.warning(f"Failed to save setting '{name}': {e}")
+            self.logger.warning(f"Failed to save setting '{name}': {e}\n {traceback.format_exc()}")
 
     def setup_plot(self):
         _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
@@ -200,7 +207,7 @@ class ThermometerApp:
                 self.perform_measurement()
                 time.sleep(self.interval.get())
             except Exception as e:
-                self.logger.error(f"Preview error: {e}")
+                self.logger.error(f"Preview error: {e}\n {traceback.format_exc()}")
                 break
 
     def start_measurement(self):
@@ -212,7 +219,8 @@ class ThermometerApp:
         self.stop_button.config(state = "normal")
         self.disable_preview()
 
-        self.csv_logger.create(f"log_{self.selected_probe.get()}_{self.profile.name.replace('/', '_')}", self.profile.headers,
+        self.csv_logger.create(f"log_{self.selected_probe.get()}_{self.profile.name.replace('/', '_')}",
+                               self.profile.headers,
                                self.output_file_path)
         self.raw_csv_logger.create(f"log_Resistance", self.profile.headers[0:2],
                                    self.output_file_path)
@@ -254,7 +262,7 @@ class ThermometerApp:
             self.logger.info(f"Connected to VISA resource: {visa_address}")
             return True
         except Exception as e:
-            self.logger.error(f"Connection error: {e}")
+            self.logger.error(f"Connection error: {e}\n {traceback.format_exc()}")
             messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
             return False
 
@@ -268,10 +276,14 @@ class ThermometerApp:
                 y1, y2 = self.perform_measurement()
                 timestamp = time.time() - self.start_time
                 self.data_queue.put((timestamp, y1, y2))
-                time.sleep(self.interval.get())
+
+                interval = get_widget_value(self.interval)
+                if interval is not None:
+                    self.interval_curr = interval
+                time.sleep(self.interval_curr)
             except Exception as e:
                 self.running = False
-                self.logger.error(f"Measurement error: {e}")
+                self.logger.error(f"Measurement error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error("dmm")
                 if error:
@@ -296,24 +308,27 @@ class ThermometerApp:
             self.csv_logger.write_row([timestamp, y1, y2])
             self.raw_csv_logger.write_row([timestamp, y1])
         except Exception as e:
-            self.logger.error(f"Logging error: {e}")
+            self.logger.error(f"Logging error: {e}\n {traceback.format_exc()}")
 
     def safe_plot(self, timestamp, y1, y2):
         try:
-            avg_count = self.average_count.get()
+            avg_count = get_widget_value(self.average_count)
+            if avg_count is not None:
+                self.average_count_curr = avg_count
+
             self.data_counter += 1
             self.total_y1 += y1
             self.total_y2 += y2
-            if self.data_counter >= avg_count:
+            if self.data_counter >= self.average_count_curr:
                 self.timestamps.append(timestamp)
-                self.resistance_y1_data.append(self.total_y1 / avg_count)
-                self.temperature_y2_data.append(self.total_y2 / avg_count)
+                self.resistance_y1_data.append(self.total_y1 / self.average_count_curr)
+                self.temperature_y2_data.append(self.total_y2 / self.average_count_curr)
                 self.data_counter = 0
                 self.total_y1 = 0.0
                 self.total_y2 = 0.0
                 self.update_plot()
         except Exception as e:
-            self.logger.error(f"Plotting error: {e}")
+            self.logger.error(f"Plotting error: {e}\n {traceback.format_exc()}")
 
     def update_plot(self):
         line_data_pairs = [
