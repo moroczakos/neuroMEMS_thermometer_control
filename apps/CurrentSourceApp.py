@@ -243,37 +243,71 @@ class CurrentCycleApp:
             if self.main_app:
                 self.main_app.stop_apps()  # Stop main app
 
+    def show_loading_popup(self, message="Connecting..."):
+        self.loading_popup = tk.Toplevel(self.root)
+        self.loading_popup.title("Please wait")
+        self.loading_popup.geometry("200x100")
+        self.loading_popup.resizable(False, False)
+        ttk.Label(self.loading_popup, text = message).pack(pady = 20)
+        self.loading_popup.grab_set()
+        self.loading_popup.update()
+
+    def close_loading_popup(self):
+        if hasattr(self, 'loading_popup') and self.loading_popup.winfo_exists():
+            self.loading_popup.destroy()
+
     def _connect(self):
         visa_address = self.visa_resource.get()
         if "No VISA" in visa_address or not visa_address.strip():
             messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
             return False
-        try:
-            if "6221" in visa_address:
-                model = "6221"
-            elif "2611" in visa_address:
-                model = "2611"
-            else:
-                model = self.instrument_manager.get_instrument_model(visa_address)
 
-            if "6221" in model:
-                self.instrument_alias = "source_6221"
-            elif "2611" in model:
-                self.instrument_alias = "source_2611"
-            else:
-                self.logger.exception(
-                    f"Not known model: {model}. Known models are 6221 and 2611\n {traceback.format_exc()}")
-                messagebox.showerror("Not known model error",
-                                     f"Not known model: {model}. Known models are 6221 and 2611")
-                return
+        self.show_loading_popup()
 
-            self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
-            self.logger.info(f"Connected to VISA resource: {visa_address}")
-            return True
-        except Exception as e:
-            self.logger.error(f"Connection error: {e}\n {traceback.format_exc()}")
-            messagebox.showerror("Connection Error", f"Could not open VISA resource:\n{e}")
+        success = False
+        exception = None
+
+        def connect_attempt():
+            nonlocal success, exception
+            try:
+                if "6221" in visa_address:
+                    model = "6221"
+                elif "2611" in visa_address:
+                    model = "2611"
+                else:
+                    model = self.instrument_manager.get_instrument_model(visa_address)
+
+                if "6221" in model:
+                    self.instrument_alias = "source_6221"
+                elif "2611" in model:
+                    self.instrument_alias = "source_2611"
+                else:
+                    raise ValueError(f"Unknown model: {model}. Expected 6221 or 2611.")
+
+                self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
+                success = True
+            except Exception as e:
+                exception = e
+
+        # Run connection attempt in a thread with timeout
+        thread = threading.Thread(target = connect_attempt, daemon = True)
+        thread.start()
+        thread.join(timeout = 10)  # 10 seconds timeout
+
+        self.close_loading_popup()
+
+        if not success:
+            if exception is None:
+                self.logger.error(f"Connection timeout")
+                messagebox.showerror("Connection timeout", f"Could not connect to VISA resource:\nConnection timeout")
+            else:
+                self.logger.error(f"Connection error: {exception}\n{traceback.format_exc()}")
+                messagebox.showerror("Connection Error", f"Could not connect to VISA resource:\n{exception}")
             return False
+
+        self.logger.info(f"Connected to VISA resource: {visa_address}")
+
+        return True
 
     def update_start_low(self):
         # Update self.start_low based on the checkbox state

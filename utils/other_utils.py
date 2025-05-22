@@ -1,5 +1,6 @@
 import tkinter as tk
 
+
 def get_widget_value(variable):
     try:
         return variable.get()
