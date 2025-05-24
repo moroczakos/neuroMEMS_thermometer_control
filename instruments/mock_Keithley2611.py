@@ -2,7 +2,7 @@ import re
 import time
 
 
-class MockKeithley2635:
+class MockKeithley2611:
     def __init__(self):
         self.buffer = []
         self.query_delay = 0.05  # seconds
@@ -17,14 +17,14 @@ class MockKeithley2635:
 
     def query(self, command):
         time.sleep(self.query_delay)
-        if "smua.measure.i()" in command:
+        if "smub.measure.i()" in command:
             return self.current
-        if "smua.measure.v()" in command:
+        if "smub.measure.v()" in command:
             return 1.0
         if "smua.measure.r()" in command:
-            return 1.0
+            return 5.0
         if "*IDN?" in command:
-            return "Keithley Instruments Inc., 2635, 123456, 1.2.3"
+            return "Keithley Instruments Inc., 2611, 123456, 1.2.3"
         elif "SYST:ERR?" in command:
             return "No error"
         return "Not known command"

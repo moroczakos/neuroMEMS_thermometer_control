@@ -44,6 +44,8 @@ class CurrentCycleApp:
         self.duration_high = tk.IntVar(value = self.setting_manager.load_setting("duration_high"))
         self.duration_low = tk.IntVar(value = self.setting_manager.load_setting("duration_low"))
         self.cycles = tk.IntVar(value = self.setting_manager.load_setting("cycles"))
+        self.other_settings = tk.StringVar()
+        self.other_settings_value = tk.DoubleVar()
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
 
@@ -73,6 +75,7 @@ class CurrentCycleApp:
         self.setup_plot()
         self.setup_logger_panel()
         self.load_visa_resources()
+        self.load_other_settings()
 
     def setup_logger_panel(self):
         """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
@@ -88,15 +91,15 @@ class CurrentCycleApp:
         # VISA selection
         ttk.Label(frame, text = "VISA Resource:").grid(row = 0, column = 0)
         self.visa_dropdown = ttk.Combobox(frame, textvariable = self.visa_resource, width = 40)
-        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 2)
+        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
         self.refresh_button = ttk.Button(frame, text = "Refresh", command = self.load_visa_resources)
-        self.refresh_button.grid(row = 0, column = 3, padx = 5, pady = 10)
+        self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
 
         # Current source and duration settings
         ttk.Label(frame, text = "----------Current source settings----------", justify = 'center').grid(row = 1,
                                                                                                         column = 0,
-                                                                                                        columnspan = 6)
+                                                                                                        columnspan = 9)
 
         ttk.Label(frame, text = "High Current (A):").grid(row = 2, column = 0)
         self.c_high_entry = ttk.Entry(frame, textvariable = self.current_high, width = 6, justify = 'center')
@@ -113,6 +116,11 @@ class CurrentCycleApp:
         self.start_low_cbutton = ttk.Checkbutton(frame, variable = self.start_low_var, command = self.update_start_low)
         self.start_low_cbutton.grid(row = 2, column = 5)
 
+        ttk.Label(frame, text = "Cycles:").grid(row = 2, column = 6)
+        self.cycles_entry = ttk.Entry(frame, textvariable = self.cycles, width = 6, justify = 'center')
+        self.cycles_entry.grid(row = 2, column = 7, pady = 10)
+        self.cycles.trace("w", lambda *args: self.save_entry_value("cycles", self.cycles))
+
         ttk.Label(frame, text = "High Duration (s):").grid(row = 3, column = 0)
         self.d_high_entry = ttk.Entry(frame, textvariable = self.duration_high, width = 6, justify = 'center')
         self.d_high_entry.grid(row = 3, column = 1)
@@ -123,15 +131,24 @@ class CurrentCycleApp:
         self.d_low_entry.grid(row = 3, column = 3)
         self.duration_low.trace("w", lambda *args: self.save_entry_value("duration_low", self.duration_low))
 
-        ttk.Label(frame, text = "Cycles:").grid(row = 3, column = 4)
-        self.cycles_entry = ttk.Entry(frame, textvariable = self.cycles, width = 6, justify = 'center')
-        self.cycles_entry.grid(row = 3, column = 5, pady = 10)
-        self.cycles.trace("w", lambda *args: self.save_entry_value("cycles", self.cycles))
+        ttk.Label(frame, text = "Other settings:").grid(row = 3, column = 4)
+
+        self.other_settings_dropdown = ttk.Combobox(frame, textvariable = self.other_settings, width = 16,
+                                                    state = "readonly")
+        self.other_settings_dropdown.grid(row = 3, column = 5, columnspan = 2)
+        self.other_settings_dropdown.bind("<<ComboboxSelected>>", self.on_other_setting_selected)
+
+        self.other_settings_entry = ttk.Entry(frame, textvariable = self.other_settings_value, width = 6,
+                                              justify = 'center')
+        self.other_settings_entry.grid(row = 3, column = 7)
+
+        self.save_other_button = ttk.Button(frame, text = "Save", command = self.save_other_setting)
+        self.save_other_button.grid(row = 3, column = 8, padx = 5)
 
         # Current measurement settings
         ttk.Label(frame, text = "--------Current measurement settings-------", justify = 'center').grid(row = 4,
                                                                                                         column = 0,
-                                                                                                        columnspan = 6)
+                                                                                                        columnspan = 9)
 
         ttk.Label(frame, text = "Interval (s):").grid(row = 5, column = 0)
         ttk.Entry(frame, textvariable = self.interval, width = 6, justify = 'center').grid(row = 5, column = 1)
@@ -163,6 +180,68 @@ class CurrentCycleApp:
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
         self.logger.info(f"Loaded VISA resources: {resources}")
 
+    def load_other_settings(self):
+        try:
+            # Save current selection
+            current_key = self.other_settings.get()
+
+            values = self.setting_manager.load_setting("device_settings")
+            if not isinstance(values, dict):
+                values = {}
+
+            keys = list(values.keys())
+            self.other_settings_dropdown['values'] = keys
+
+            # Restore current selection if it still exists
+            if current_key in keys:
+                self.other_settings.set(current_key)
+            elif keys:
+                self.other_settings.set(keys[0])
+            else:
+                self.other_settings.set("")
+                self.other_settings_value.set(0.0)
+
+            self.on_other_setting_selected()
+
+        except Exception as e:
+            self.logger.warning(f"Failed to load device settings: {e}\n{traceback.format_exc()}")
+            self.other_settings_dropdown['values'] = []
+
+    def on_other_setting_selected(self, event=None):
+        try:
+            key = self.other_settings.get()
+            settings_dict = self.setting_manager.load_setting("device_settings")
+            if isinstance(settings_dict, dict) and key in settings_dict:
+                self.other_settings_value.set(settings_dict[key])
+                self.logger.info(f"Loaded device setting '{key}': {settings_dict[key]}")
+            else:
+                self.other_settings_value.set(0.0)
+        except Exception as e:
+            self.logger.warning(f"Failed to load selected device setting: {e}\n{traceback.format_exc()}")
+            self.other_settings_value.set(0.0)
+
+    def save_other_setting(self):
+        try:
+            key = self.other_settings.get()
+            value = self.other_settings_value.get()
+            if not key:
+                messagebox.showwarning("Warning", "Setting name is empty.")
+                return
+
+            settings_dict = self.setting_manager.load_setting("device_settings")
+            if not isinstance(settings_dict, dict):
+                settings_dict = {}
+
+            settings_dict[key] = value
+            self.setting_manager.save_setting("device_settings", settings_dict)
+
+            self.load_other_settings()
+            self.other_settings.set(key)  # Keep focus on saved key
+            self.logger.info(f"Saved device setting '{key}': {value}")
+        except Exception as e:
+            self.logger.error(f"Failed to save other setting: {e}\n{traceback.format_exc()}")
+            messagebox.showerror("Error", f"Failed to save setting: {e}")
+
     def save_entry_value(self, name, value):
         try:
             v = get_widget_value(value)
@@ -181,8 +260,16 @@ class CurrentCycleApp:
 
     def perform_measurement(self):
         source_handler = self.instrument_manager.get_handler(self.instrument_alias)
-        y1, y2 = self.profile.measure_func(source_handler)
-        y3 = self.profile.post_process_func(y1, y2) if self.profile.post_process_func else None
+        meas_dict = self.profile.measure_func(source_handler)
+        y1 = meas_dict["current"]
+        if "voltage" in meas_dict:
+            y2 = meas_dict["voltage"]
+        else:
+            y2 = None
+        if "resistance" in meas_dict:
+            y3 = meas_dict["resistance"]
+        else:
+            y3 = self.profile.post_process_func(y1, y2) if self.profile.post_process_func else None
         self.current_y1.set(round(y1, 4))
         self.voltage_y2.set(round(y2, 2) if y2 is not None else float('nan'))
         return y1, y2, y3
@@ -202,10 +289,23 @@ class CurrentCycleApp:
         self.d_high_entry.config(state = "disabled")
         self.d_low_entry.config(state = "disabled")
         self.cycles_entry.config(state = "disabled")
+        self.other_settings_dropdown.config(state = "disabled")
+        self.other_settings_entry.config(state = "disabled")
+        self.save_other_button.config(state = "disabled")
 
         # File setup
         self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
                                self.output_file_path)
+
+        # Set settings
+        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+        settings_dict = self.setting_manager.load_setting("device_settings")
+        key = "Current range (A)"
+        if key in settings_dict:
+            source_handler.set_current_range(settings_dict[key])
+        key = "Voltage limit (V)"
+        if key in settings_dict:
+            source_handler.set_voltage_limit(settings_dict[key])
 
         self.timestamps = []
         self.current_y1_data = []
@@ -230,6 +330,9 @@ class CurrentCycleApp:
             self.d_high_entry.config(state = "normal")
             self.d_low_entry.config(state = "normal")
             self.cycles_entry.config(state = "normal")
+            self.other_settings_dropdown.config(state = "normal")
+            self.other_settings_entry.config(state = "normal")
+            self.save_other_button.config(state = "normal")
 
             if self.instrument_manager.get_instrument(self.instrument_alias):
                 self.instrument_manager.disconnect(self.instrument_alias)

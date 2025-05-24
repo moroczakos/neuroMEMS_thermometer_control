@@ -1,3 +1,4 @@
+import time
 from instruments.handlers.base import InstrumentHandler
 from instruments.mock_Keithley2100 import MockKeithley2100
 
@@ -6,6 +7,7 @@ class DMMHandler(InstrumentHandler):
     def connect(self, resource_manager):
         if self.use_mock or self.address == "MOCK":
             self.instrument = MockKeithley2100()
+            # time.sleep(11)
         else:
             self.instrument = resource_manager.open_resource(self.address)
         self.reset()

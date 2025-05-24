@@ -1,10 +1,14 @@
 {
-    "probe": "BP-24",
+    "probe": "SMA15",
     "interval": 0.01,
-    "avg_count": 1,
-    "current_high": 0.5,
+    "avg_count": 3,
+    "current_high": 0.4,
     "current_low": 0.1,
     "duration_high": 2,
     "duration_low": 4,
-    "cycles": 3
+    "cycles": 3,
+    "device_settings": {
+        "Current range (A)": 0.6,
+        "Voltage limit (V)": 5.0
+    }
 }

@@ -89,10 +89,10 @@ class ThermometerApp:
 
         ttk.Label(frame, text = "VISA Resource:").grid(row = 0, column = 0)
         self.visa_dropdown = ttk.Combobox(frame, textvariable = self.visa_resource, width = 40)
-        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 2)
+        self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
         self.refresh_button = ttk.Button(frame, text = "Refresh", command = self.load_visa_resources)
-        self.refresh_button.grid(row = 0, column = 3, padx = 5, pady = 10)
+        self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
 
         ttk.Label(frame, text = "Thermoprobe:").grid(row = 1, column = 0)
         self.probe_dropdown = ttk.Combobox(frame, textvariable = self.selected_probe, values = list(self.probes.keys()),

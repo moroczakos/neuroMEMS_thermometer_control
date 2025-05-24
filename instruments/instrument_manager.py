@@ -1,14 +1,15 @@
 import pyvisa
 from tkinter import messagebox
 from instruments.handlers.dmm_handler import DMMHandler
-from instruments.handlers.source_handler import SourceHandler6221, SourceHandler2635
+from instruments.handlers.source_handler_6221 import SourceHandler6221
+from instruments.handlers.source_handler_2611 import SourceHandler2611
 
 
 class InstrumentManager:
     handler_registry = {
         "dmm": DMMHandler,
         "source_6221": SourceHandler6221,
-        "source_2635": SourceHandler2635
+        "source_2611": SourceHandler2611
     }
 
     def __init__(self, allow_mock=True):
@@ -30,7 +31,7 @@ class InstrumentManager:
         try:
             instrument = self.rm.open_resource(resource)
             idn = instrument.query("*IDN?")
-            self.rm.close()
+            # self.rm.close()
             manufacturer, model, serial, firmware = idn.split(',')
             return model
         except Exception as e:
