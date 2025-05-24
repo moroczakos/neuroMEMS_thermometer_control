@@ -1,19 +1,30 @@
+# ─── Standard Library ────────────────────────────────────────────────────────
+import os
 import queue
-import tkinter as tk
-import traceback
-from tkinter import ttk, messagebox
 import threading
 import time
+import traceback
+
+# ─── Third-Party Libraries ───────────────────────────────────────────────────
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+# ─── Local Modules ───────────────────────────────────────────────────────────
+from concurrent.futures import ThreadPoolExecutor
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
+from utils.logger_manager import LoggerManager, safe_execute
 from utils.measurement_profile import MeasurementProfile
-from utils.plot_utils import update_plot, create_dual_axis_plot
-import os
+from utils.other_utils import (
+    connect_with_popup,
+    get_widget_value,
+    load_visa_resources_util,
+    save_setting_from_widget,
+)
+from utils.plot_utils import create_dual_axis_plot, update_plot
 from utils.settings_utils import SettingManager
-from utils.logger_manager import LoggerManager
 from utils.ui_utils.logger_panel import LoggingPanel
-from utils.other_utils import get_widget_value
-from concurrent.futures import ThreadPoolExecutor
+from utils.constants import Keys, EntryConfig, States, Labels, UI, Other
 
 
 class CurrentCycleApp:
@@ -39,15 +50,15 @@ class CurrentCycleApp:
         # Control variables
         self.running = False
         self.visa_resource = tk.StringVar()
-        self.current_high = tk.DoubleVar(value = self.setting_manager.load_setting("current_high"))
-        self.current_low = tk.DoubleVar(value = self.setting_manager.load_setting("current_low"))
-        self.duration_high = tk.IntVar(value = self.setting_manager.load_setting("duration_high"))
-        self.duration_low = tk.IntVar(value = self.setting_manager.load_setting("duration_low"))
-        self.cycles = tk.IntVar(value = self.setting_manager.load_setting("cycles"))
+        self.current_high = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.CURRENT_HIGH))
+        self.current_low = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.CURRENT_LOW))
+        self.duration_high = tk.IntVar(value = self.setting_manager.load_setting(Keys.DURATION_HIGH))
+        self.duration_low = tk.IntVar(value = self.setting_manager.load_setting(Keys.DURATION_LOW))
+        self.cycles = tk.IntVar(value = self.setting_manager.load_setting(Keys.CYCLES))
         self.other_settings = tk.StringVar()
         self.other_settings_value = tk.DoubleVar()
-        self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
-        self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
+        self.interval = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.INTERVAL))
+        self.average_count = tk.IntVar(value = self.setting_manager.load_setting(Keys.AVG_COUNT))
 
         self.interval_curr = self.interval
         self.average_count_curr = self.average_count
@@ -85,97 +96,104 @@ class CurrentCycleApp:
         self.logger.info("Application started and UI initialized.")
 
     def create_widgets(self):
-        frame = ttk.Frame(self.root, padding = 10)
-        frame.pack(fill = tk.X)
+        self.frame = ttk.Frame(self.root, padding = 10)
+        self.frame.pack(fill = tk.X)
 
-        # VISA selection
-        ttk.Label(frame, text = "VISA Resource:").grid(row = 0, column = 0)
-        self.visa_dropdown = ttk.Combobox(frame, textvariable = self.visa_resource, width = 40)
+        self.create_visa_selector()
+        self.create_current_settings_section()
+        self.create_other_settings_section()
+        self.create_measurement_settings_section()
+        self.create_live_display_section()
+
+    def create_visa_selector(self):
+        ttk.Label(self.frame, text = "VISA Resource:").grid(row = 0, column = 0)
+        self.visa_dropdown = ttk.Combobox(self.frame, textvariable = self.visa_resource, width = 40)
         self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
-        self.refresh_button = ttk.Button(frame, text = "Refresh", command = self.load_visa_resources)
+        self.refresh_button = ttk.Button(self.frame, text = "Refresh", command = self.load_visa_resources)
         self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
 
-        # Current source and duration settings
-        ttk.Label(frame, text = "----------Current source settings----------", justify = 'center').grid(row = 1,
-                                                                                                        column = 0,
-                                                                                                        columnspan = 9)
+    def create_current_settings_section(self):
+        row = 1
+        ttk.Label(self.frame, text = Labels.CURRENT_SOURCE_SETTINGS, justify = 'center') \
+            .grid(row = row, column = 0, columnspan = 9)
 
-        ttk.Label(frame, text = "High Current (A):").grid(row = 2, column = 0)
-        self.c_high_entry = ttk.Entry(frame, textvariable = self.current_high, width = 6, justify = 'center')
-        self.c_high_entry.grid(row = 2, column = 1)
-        self.current_high.trace("w", lambda *args: self.save_entry_value("current_high", self.current_high))
+        row += 1
+        self.c_high_entry = self._entry_with_label(row, 0, "High Current (A):", self.current_high,
+                                                   self.save_entry_value, Keys.CURRENT_HIGH)
+        self.c_low_entry = self._entry_with_label(row, 2, "Low Current (A):", self.current_low, self.save_entry_value,
+                                                  Keys.CURRENT_LOW)
 
-        ttk.Label(frame, text = "Low Current (A):").grid(row = 2, column = 2)
-        self.c_low_entry = ttk.Entry(frame, textvariable = self.current_low, width = 6, justify = 'center')
-        self.c_low_entry.grid(row = 2, column = 3)
-        self.current_low.trace("w", lambda *args: self.save_entry_value("current_low", self.current_low))
-
+        ttk.Label(self.frame, text = Labels.STARTS_WITH_LOW).grid(row = row, column = 4)
         self.start_low_var = tk.BooleanVar(value = self.start_low)
-        ttk.Label(frame, text = "Starts with low current:", ).grid(row = 2, column = 4)
-        self.start_low_cbutton = ttk.Checkbutton(frame, variable = self.start_low_var, command = self.update_start_low)
-        self.start_low_cbutton.grid(row = 2, column = 5)
+        self.start_low_cbutton = ttk.Checkbutton(self.frame, variable = self.start_low_var,
+                                                 command = self.update_start_low)
+        self.start_low_cbutton.grid(row = row, column = 5)
 
-        ttk.Label(frame, text = "Cycles:").grid(row = 2, column = 6)
-        self.cycles_entry = ttk.Entry(frame, textvariable = self.cycles, width = 6, justify = 'center')
-        self.cycles_entry.grid(row = 2, column = 7, pady = 10)
-        self.cycles.trace("w", lambda *args: self.save_entry_value("cycles", self.cycles))
+        self.cycles_entry = self._entry_with_label(row, 6, "Cycles:", self.cycles, self.save_entry_value, Keys.CYCLES)
 
-        ttk.Label(frame, text = "High Duration (s):").grid(row = 3, column = 0)
-        self.d_high_entry = ttk.Entry(frame, textvariable = self.duration_high, width = 6, justify = 'center')
-        self.d_high_entry.grid(row = 3, column = 1)
-        self.duration_high.trace("w", lambda *args: self.save_entry_value("duration_high", self.duration_high))
+        row += 1
+        self.d_high_entry = self._entry_with_label(row, 0, "High Duration (s):", self.duration_high,
+                                                   self.save_entry_value, Keys.DURATION_HIGH)
+        self.d_low_entry = self._entry_with_label(row, 2, "Low Duration (s):", self.duration_low, self.save_entry_value,
+                                                  Keys.DURATION_LOW)
 
-        ttk.Label(frame, text = "Low Duration (s):").grid(row = 3, column = 2)
-        self.d_low_entry = ttk.Entry(frame, textvariable = self.duration_low, width = 6, justify = 'center')
-        self.d_low_entry.grid(row = 3, column = 3)
-        self.duration_low.trace("w", lambda *args: self.save_entry_value("duration_low", self.duration_low))
+    def create_other_settings_section(self):
+        ttk.Label(self.frame, text = Labels.OTHER_SETTINGS).grid(row = 3, column = 4)
 
-        ttk.Label(frame, text = "Other settings:").grid(row = 3, column = 4)
-
-        self.other_settings_dropdown = ttk.Combobox(frame, textvariable = self.other_settings, width = 16,
-                                                    state = "readonly")
+        self.other_settings_dropdown = ttk.Combobox(
+            self.frame, textvariable = self.other_settings, width = 16, state = States.READONLY
+        )
         self.other_settings_dropdown.grid(row = 3, column = 5, columnspan = 2)
         self.other_settings_dropdown.bind("<<ComboboxSelected>>", self.on_other_setting_selected)
 
-        self.other_settings_entry = ttk.Entry(frame, textvariable = self.other_settings_value, width = 6,
-                                              justify = 'center')
+        self.other_settings_entry = ttk.Entry(
+            self.frame, textvariable = self.other_settings_value, width = EntryConfig.WIDTH,
+            justify = EntryConfig.JUSTIFY
+        )
         self.other_settings_entry.grid(row = 3, column = 7)
 
-        self.save_other_button = ttk.Button(frame, text = "Save", command = self.save_other_setting)
+        self.save_other_button = ttk.Button(self.frame, text = Labels.SAVE, command = self.save_other_setting)
         self.save_other_button.grid(row = 3, column = 8, padx = 5)
 
-        # Current measurement settings
-        ttk.Label(frame, text = "--------Current measurement settings-------", justify = 'center').grid(row = 4,
-                                                                                                        column = 0,
-                                                                                                        columnspan = 9)
+    def create_measurement_settings_section(self):
+        ttk.Label(self.frame, text = Labels.CURRENT_MEASUREMENT_SETTINGS, justify = 'center') \
+            .grid(row = 4, column = 0, columnspan = 9)
 
-        ttk.Label(frame, text = "Interval (s):").grid(row = 5, column = 0)
-        ttk.Entry(frame, textvariable = self.interval, width = 6, justify = 'center').grid(row = 5, column = 1)
-        self.interval.trace("w", lambda *args: self.save_entry_value("interval", self.interval))
+        self._entry_with_label(5, 0, "Interval (s):", self.interval, self.save_entry_value, Keys.INTERVAL)
+        self._entry_with_label(5, 2, "Average count:", self.average_count, self.save_entry_value, Keys.AVG_COUNT)
 
-        ttk.Label(frame, text = "Average count:").grid(row = 5, column = 2)
-        ttk.Entry(frame, textvariable = self.average_count, width = 6, justify = 'center').grid(row = 5, column = 3)
-        self.average_count.trace("w", lambda *args: self.save_entry_value("avg_count", self.average_count))
-
-        self.start_button = ttk.Button(frame, text = "Start", command = self.start_measurement)
+        self.start_button = ttk.Button(self.frame, text = "Start", command = self.start_measurement)
         self.start_button.grid(row = 5, column = 4)
 
-        self.stop_button = ttk.Button(frame, text = "Stop", command = self.stop_measurement, state = "disabled")
+        self.stop_button = ttk.Button(self.frame, text = "Stop", command = self.stop_measurement,
+                                      state = States.DISABLED)
         self.stop_button.grid(row = 5, column = 5)
 
-        ttk.Label(frame, text = "Live current (A):").grid(row = 6, column = 0, sticky = 'e')
-        ttk.Label(frame, textvariable = self.current_y1, foreground = 'blue').grid(row = 6, column = 1,
-                                                                                   sticky = 'w')
+    def create_live_display_section(self):
+        ttk.Label(self.frame, text = "Live current (A):").grid(row = 6, column = 0, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.current_y1, foreground = 'blue').grid(row = 6, column = 1,
+                                                                                        sticky = 'w')
 
-        ttk.Label(frame, text = "Live voltage (V):").grid(row = 6, column = 2, sticky = 'e')
-        ttk.Label(frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = 6, column = 3,
-                                                                                    sticky = 'w')
+        ttk.Label(self.frame, text = "Live voltage (V):").grid(row = 6, column = 2, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = 6, column = 3,
+                                                                                         sticky = 'w')
 
+    def _entry_with_label(self, row, col, label, variable, trace_callback=None, key=None):
+        ttk.Label(self.frame, text = label).grid(row = row, column = col)
+        entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH, justify = EntryConfig.JUSTIFY)
+        entry.grid(row = row, column = col + 1)
+        if trace_callback and key:
+            variable.trace_add("write", lambda *args: trace_callback(key, variable))
+        return entry
+
+    @safe_execute
     def load_visa_resources(self):
-        resources = self.instrument_manager.list_resources(only_tcpip = False)
-        if self.instrument_manager.allow_mock:
-            resources = ("MOCK_6221", "MOCK_2611") + tuple(resources)
+        resources = load_visa_resources_util(self.instrument_manager,
+                                             only_tcpip = False,
+                                             logger = self.logger,
+                                             include_mock = True,
+                                             mock_resources = ("MOCK_6221", "MOCK_2611"))
         self.visa_dropdown['values'] = resources
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
         self.logger.info(f"Loaded VISA resources: {resources}")
@@ -243,13 +261,7 @@ class CurrentCycleApp:
             messagebox.showerror("Error", f"Failed to save setting: {e}")
 
     def save_entry_value(self, name, value):
-        try:
-            v = get_widget_value(value)
-            if v is not None:
-                self.setting_manager.save_setting(name, v)
-                self.logger.info(f"Saved setting '{name}': {v}")
-        except Exception as e:
-            self.logger.warning(f"Failed to save setting '{name}': {e}\n {traceback.format_exc()}")
+        save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def setup_plot(self):
         _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
@@ -270,42 +282,46 @@ class CurrentCycleApp:
             y3 = meas_dict["resistance"]
         else:
             y3 = self.profile.post_process_func(y1, y2) if self.profile.post_process_func else None
-        self.current_y1.set(round(y1, 4))
-        self.voltage_y2.set(round(y2, 2) if y2 is not None else float('nan'))
+        self.root.after(0, lambda: self.current_y1.set(round(y1, 4)))
+        self.root.after(0, lambda: self.voltage_y2.set(round(y2, 2)) if y2 is not None else float('nan'))
         return y1, y2, y3
 
+    def set_widget_states(self, enabled: bool):
+        state = "normal" if enabled else "disabled"
+        self.start_button.config(state = state)
+        self.stop_button.config(state = "normal" if not enabled else "disabled")
+
+        widgets = [
+            self.visa_dropdown,
+            self.refresh_button,
+            self.c_high_entry,
+            self.c_low_entry,
+            self.start_low_cbutton,
+            self.d_high_entry,
+            self.d_low_entry,
+            self.cycles_entry,
+            self.other_settings_dropdown,
+            self.other_settings_entry,
+            self.save_other_button,
+        ]
+
+        for widget in widgets:
+            widget.config(state = state)
+
+    @safe_execute
     def start_measurement(self):
         if not self._connect():
             return
+        self.configure_device()
 
         self.running = True
 
         # Control widget accessibility
-        self.start_button.config(state = "disabled")
-        self.stop_button.config(state = "normal")
-        self.c_high_entry.config(state = "disabled")
-        self.c_low_entry.config(state = "disabled")
-        self.start_low_cbutton.config(state = "disabled")
-        self.d_high_entry.config(state = "disabled")
-        self.d_low_entry.config(state = "disabled")
-        self.cycles_entry.config(state = "disabled")
-        self.other_settings_dropdown.config(state = "disabled")
-        self.other_settings_entry.config(state = "disabled")
-        self.save_other_button.config(state = "disabled")
+        self.set_widget_states(enabled = False)
 
         # File setup
         self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
                                self.output_file_path)
-
-        # Set settings
-        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
-        settings_dict = self.setting_manager.load_setting("device_settings")
-        key = "Current range (A)"
-        if key in settings_dict:
-            source_handler.set_current_range(settings_dict[key])
-        key = "Voltage limit (V)"
-        if key in settings_dict:
-            source_handler.set_voltage_limit(settings_dict[key])
 
         self.timestamps = []
         self.current_y1_data = []
@@ -317,22 +333,16 @@ class CurrentCycleApp:
         threading.Thread(target = self.data_worker_loop, daemon = True).start()
         self.logger.info("Started measurement.")
 
+    @safe_execute
     def stop_measurement(self):
         if self.running:
             self.running = False
 
+            if self.executor:
+                self.executor.shutdown(wait = False)
+
             # Control widget accessibility
-            self.start_button.config(state = "normal")
-            self.stop_button.config(state = "disabled")
-            self.c_high_entry.config(state = "normal")
-            self.c_low_entry.config(state = "normal")
-            self.start_low_cbutton.config(state = "normal")
-            self.d_high_entry.config(state = "normal")
-            self.d_low_entry.config(state = "normal")
-            self.cycles_entry.config(state = "normal")
-            self.other_settings_dropdown.config(state = "normal")
-            self.other_settings_entry.config(state = "normal")
-            self.save_other_button.config(state = "normal")
+            self.set_widget_states(enabled = True)
 
             if self.instrument_manager.get_instrument(self.instrument_alias):
                 self.instrument_manager.disconnect(self.instrument_alias)
@@ -346,72 +356,41 @@ class CurrentCycleApp:
             if self.main_app:
                 self.main_app.stop_apps()  # Stop main app
 
-    def show_loading_popup(self, message="Connecting..."):
-        self.loading_popup = tk.Toplevel(self.root)
-        self.loading_popup.title("Please wait")
-        self.loading_popup.geometry("200x100")
-        self.loading_popup.resizable(False, False)
-        ttk.Label(self.loading_popup, text = message).pack(pady = 20)
-        self.loading_popup.grab_set()
-        self.loading_popup.update()
-
-    def close_loading_popup(self):
-        if hasattr(self, 'loading_popup') and self.loading_popup.winfo_exists():
-            self.loading_popup.destroy()
-
     def _connect(self):
         visa_address = self.visa_resource.get()
-        if "No VISA" in visa_address or not visa_address.strip():
-            messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
-            return False
 
-        self.show_loading_popup()
-
-        success = False
-        exception = None
-
-        def connect_attempt():
-            nonlocal success, exception
-            try:
-                if "6221" in visa_address:
-                    model = "6221"
-                elif "2611" in visa_address:
-                    model = "2611"
-                else:
-                    model = self.instrument_manager.get_instrument_model(visa_address)
-
-                if "6221" in model:
-                    self.instrument_alias = "source_6221"
-                elif "2611" in model:
-                    self.instrument_alias = "source_2611"
-                else:
-                    raise ValueError(f"Unknown model: {model}. Expected 6221 or 2611.")
-
-                self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
-                success = True
-            except Exception as e:
-                exception = e
-
-        # Run connection attempt in a thread with timeout
-        thread = threading.Thread(target = connect_attempt, daemon = True)
-        thread.start()
-        thread.join(timeout = 10)  # 10 seconds timeout
-
-        self.close_loading_popup()
-
-        if not success:
-            if exception is None:
-                self.logger.error(f"Connection timeout")
-                messagebox.showerror("Connection timeout", f"Could not connect to VISA resource:\nConnection timeout")
+        def connect_func():
+            if "6221" in visa_address:
+                model = "6221"
+            elif "2611" in visa_address:
+                model = "2611"
             else:
-                self.logger.error(f"Connection error: {exception}\n{traceback.format_exc()}")
-                messagebox.showerror("Connection Error", f"Could not connect to VISA resource:\n{exception}")
-            return False
+                model = self.instrument_manager.get_instrument_model(visa_address)
 
-        self.logger.info(f"Connected to VISA resource: {visa_address}")
+            if "6221" in model:
+                self.instrument_alias = "source_6221"
+            elif "2611" in model:
+                self.instrument_alias = "source_2611"
+            else:
+                raise ValueError(f"Unknown model: {model}. Expected 6221 or 2611.")
 
-        return True
+            self.instrument_manager.connect(self.instrument_alias, visa_address, role = self.instrument_alias)
 
+        return connect_with_popup(self.root, visa_address, self.logger, connect_func)
+
+    def configure_device(self):
+        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+        settings_dict = self.setting_manager.load_setting("device_settings")
+
+        current_range = settings_dict.get(Keys.CURRENT_RANGE_KEY)
+        voltage_limit = settings_dict.get(Keys.VOLTAGE_LIMIT_KEY)
+
+        if current_range:
+            source_handler.set_current_range(current_range)
+        if voltage_limit:
+            source_handler.set_voltage_limit(voltage_limit)
+
+    @safe_execute
     def update_start_low(self):
         # Update self.start_low based on the checkbox state
         self.start_low = self.start_low_var.get()
@@ -475,10 +454,9 @@ class CurrentCycleApp:
                 break
 
     def data_worker_loop(self):
-        MAX_QUEUE_SIZE = 100
         while self.running or not self.data_queue.empty():
             try:
-                if self.data_queue.qsize() > MAX_QUEUE_SIZE:
+                if self.data_queue.qsize() > Other.MAX_QUEUE_SIZE:
                     self.logger.warning("⚠️ Queue backlog detected!")
                 timestamp, y1, y2, y3 = self.data_queue.get(timeout = 0.5)
                 if self.running:
@@ -510,6 +488,12 @@ class CurrentCycleApp:
                 self.total_y1 = 0.0
                 self.total_y2 = 0.0
                 self.update_plot()
+
+            if len(self.timestamps) > UI.MAX_POINTS:
+                self.timestamps = self.timestamps[-
+                                                  UI.MAX_POINTS:]
+                self.current_y1_data = self.current_y1_data[-UI.MAX_POINTS:]
+                self.voltage_y2_data = self.voltage_y2_data[-UI.MAX_POINTS:]
         except Exception as e:
             self.logger.error(f"Plotting error: {e}\n {traceback.format_exc()}")
 

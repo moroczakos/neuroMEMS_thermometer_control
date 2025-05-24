@@ -1,4 +1,6 @@
 import logging
+from functools import wraps
+from tkinter import messagebox
 
 
 class LoggerManager:
@@ -14,3 +16,15 @@ class LoggerManager:
 
     def get_logger(self):
         return self.logger
+
+
+def safe_execute(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {e}", exc_info = True)
+            messagebox.showerror("Unexpected Error", f"An error occurred:\n{e}")
+
+    return wrapper

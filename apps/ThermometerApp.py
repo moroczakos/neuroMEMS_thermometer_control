@@ -1,19 +1,29 @@
-import tkinter as tk
-import traceback
-from tkinter import ttk, messagebox
-import threading
-import time
+# ─── Standard Library ────────────────────────────────────────────────────────
 import os
 import queue
+import threading
+import time
+import traceback
+
+# ─── Third-Party Libraries ───────────────────────────────────────────────────
+import tkinter as tk
+from tkinter import ttk
+
+# ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
 from instruments.instrument_manager import InstrumentManager
 from utils.file_utils import CsvLogger
-from utils.plot_utils import create_dual_axis_plot, update_plot
-from utils.settings_utils import load_probe_data, SettingManager
 from utils.logger_manager import LoggerManager
-from utils.ui_utils.logger_panel import LoggingPanel
-from utils.other_utils import get_widget_value
 from utils.measurement_profile import MeasurementProfile
+from utils.other_utils import (
+    connect_with_popup,
+    get_widget_value,
+    load_visa_resources_util,
+    save_setting_from_widget,
+)
+from utils.plot_utils import create_dual_axis_plot, update_plot
+from utils.settings_utils import SettingManager, load_probe_data
+from utils.ui_utils.logger_panel import LoggingPanel
 
 
 class ThermometerApp:
@@ -136,21 +146,17 @@ class ThermometerApp:
         ttk.Label(frame, text = "").grid(row = 6, column = 0)
 
     def load_visa_resources(self):
-        resources = self.instrument_manager.list_resources()
-        if self.instrument_manager.allow_mock:
-            resources = ("MOCK",) + tuple(resources)
+        resources = load_visa_resources_util(self.instrument_manager,
+                                             only_tcpip = False,
+                                             logger = self.logger,
+                                             include_mock = True,
+                                             mock_resources = ("MOCK",))
         self.visa_dropdown['values'] = resources
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
         self.logger.info(f"Loaded VISA resources: {resources}")
 
     def save_entry_value(self, name, value):
-        try:
-            v = get_widget_value(value)
-            if v is not None:
-                self.setting_manager.save_setting(name, v)
-                self.logger.info(f"Saved setting '{name}': {v}")
-        except Exception as e:
-            self.logger.warning(f"Failed to save setting '{name}': {e}\n {traceback.format_exc()}")
+        save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def setup_plot(self):
         _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
@@ -252,57 +258,13 @@ class ThermometerApp:
             if self.main_app:
                 self.main_app.stop_apps()  # Stop main app
 
-    def show_loading_popup(self, message="Connecting..."):
-        self.loading_popup = tk.Toplevel(self.root)
-        self.loading_popup.title("Please wait")
-        self.loading_popup.geometry("200x100")
-        self.loading_popup.resizable(False, False)
-        ttk.Label(self.loading_popup, text = message).pack(pady = 20)
-        self.loading_popup.grab_set()
-        self.loading_popup.update()
-
-    def close_loading_popup(self):
-        if hasattr(self, 'loading_popup') and self.loading_popup.winfo_exists():
-            self.loading_popup.destroy()
-
     def _connect(self):
         visa_address = self.visa_resource.get()
-        if "No VISA" in visa_address or not visa_address.strip():
-            messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
-            return False
 
-        self.show_loading_popup()
+        def connect_func():
+            self.instrument_manager.connect("dmm", visa_address, role = "dmm")
 
-        success = False
-        exception = None
-
-        def connect_attempt():
-            nonlocal success, exception
-            try:
-                self.instrument_manager.connect("dmm", visa_address, role = "dmm")
-                success = True
-            except Exception as e:
-                exception = e
-
-        # Run connection attempt in a thread with timeout
-        thread = threading.Thread(target = connect_attempt, daemon = True)
-        thread.start()
-        thread.join(timeout = 10)  # 10 seconds timeout
-
-        self.close_loading_popup()
-
-        if not success:
-            if exception is None:
-                self.logger.error(f"Connection timeout")
-                messagebox.showerror("Connection timeout", f"Could not connect to VISA resource:\nConnection timeout")
-            else:
-                self.logger.error(f"Connection error: {exception}\n{traceback.format_exc()}")
-                messagebox.showerror("Connection Error", f"Could not connect to VISA resource:\n{exception}")
-            return False
-
-        self.logger.info(f"Connected to VISA resource: {visa_address}")
-
-        return True
+        return connect_with_popup(self.root, visa_address, self.logger, connect_func)
 
     def measure_loop(self):
         self.data_counter = 0
