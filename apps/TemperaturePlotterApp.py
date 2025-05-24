@@ -26,6 +26,7 @@ class TemperaturePlotterApp:
         self.show_drift = IntVar(value = 1)
         self.show_smoothed = IntVar(value = 1)
         self.show_transitions = IntVar(value = 1)
+        self.show_rise_fall_times = IntVar(value = 1)
         self.show_title = IntVar(value = 1)
         self.show_legend = IntVar(value = 1)
 
@@ -54,20 +55,44 @@ class TemperaturePlotterApp:
 
         Label(checkbox_frame, text = "Show:").pack(side = "left", padx = (0, 10))
         text_width = 10
+
+        def get_checkbox_state(state):
+            if state.get() == 1:
+                return "checked"
+            else:
+                return "unchecked"
+
         Checkbutton(checkbox_frame, text = "Raw Temp", variable = self.show_temp,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(f"Raw Temp checkbox {get_checkbox_state(self.show_temp)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Compensated", variable = self.show_compensated,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Compensated checkbox {get_checkbox_state(self.show_compensated)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Drift", variable = self.show_drift,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Drift checkbox {get_checkbox_state(self.show_drift)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Smoothed", variable = self.show_smoothed,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Smoothed checkbox {get_checkbox_state(self.show_smoothed)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Transitions", variable = self.show_transitions,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Transitions checkbox {get_checkbox_state(self.show_transitions)}."),
+                    width = text_width).pack(side = "left")
+        Checkbutton(checkbox_frame, text = "Rise/Fall Times", variable = self.show_rise_fall_times,
+                    command = lambda: self.update_plot(
+                        f"Rise/Fall Times checkbox {get_checkbox_state(self.show_rise_fall_times)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Title", variable = self.show_title,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Title checkbox {get_checkbox_state(self.show_title)}."),
+                    width = text_width).pack(side = "left")
         Checkbutton(checkbox_frame, text = "Legend", variable = self.show_legend,
-                    command = self.update_plot_if_file_loaded, width = text_width).pack(side = "left")
+                    command = lambda: self.update_plot(
+                        f"Legend checkbox {get_checkbox_state(self.show_legend)}."),
+                    width = text_width).pack(side = "left")
 
         controls_frame = Frame(self.root)  # Frame for control widgets (spinboxes, buttons, etc.)
         controls_frame.pack(pady = 10)
@@ -76,12 +101,14 @@ class TemperaturePlotterApp:
         Label(controls_frame, text = "Polynomial Degree:").pack(side = "left", padx = (0, 5))
         Spinbox(controls_frame, from_ = 0, to = 5, textvariable = self.degree_var, width = 5).pack(side = "left",
                                                                                                    padx = (0, 20))
-        self.degree_var.trace("w", self.update_plot_if_file_loaded)  # Update plot when value changes
+        self.degree_var.trace("w", lambda *args: self.update_plot(
+            f"Polynomial Degree is {self.degree_var.get()}."))  # Update plot when value changes
 
         # Smoothing Window Controls (Entry)
         Label(controls_frame, text = "Smoothing Window (data point):").pack(side = "left")
         Entry(controls_frame, textvariable = self.smoothing_var, width = 5).pack(side = "left", padx = (0, 20))
-        self.smoothing_var.trace("w", self.update_plot_if_file_loaded)  # Update plot when value changes
+        self.smoothing_var.trace("w", lambda *args: self.update_plot(
+            f"Smoothing Window is {self.smoothing_var.get()}."))  # Update plot when value changes
 
         Button(self.root, text = "Select File and Plot", command = self.select_file_and_plot).pack(pady = 20)
 
@@ -100,10 +127,10 @@ class TemperaturePlotterApp:
             self.file_label.config(text = "No file selected.")
             self.logger.warning("No file was selected.")
 
-    def update_plot_if_file_loaded(self, *args):
+    def update_plot(self, change_message=""):
         """Update the plot if a file is loaded and input changes."""
         if self.file_path:
-            self.logger.info("Plot update triggered by input change.")
+            self.logger.info(f"Plot update triggered by input change. {change_message}")
             self.plot_data()
 
     def plot_data(self):
@@ -140,8 +167,12 @@ class TemperaturePlotterApp:
             # Compute average amplitude between transition points
             average_amplitude = self.compute_amplitudes(smoothed, transitions)
 
+            # Compute average rise and fall time
+            avg_rise_time, avg_fall_time, rise_fall_times = self.compute_rise_fall_times(time, smoothed, transitions)
+
             # Draw the plot with the processed data
-            self.draw_plot(time, temp, drift, compensated, smoothed, transitions, average_amplitude, poly_degree)
+            self.draw_plot(time, temp, drift, compensated, smoothed, transitions, average_amplitude, avg_rise_time,
+                           avg_fall_time, rise_fall_times, poly_degree)
             self.logger.info("Plotting completed.")
         except Exception as e:
             self.logger.error(f"Error while plotting data: {e}", exc_info = True)
@@ -189,7 +220,58 @@ class TemperaturePlotterApp:
         self.logger.info(f"Average amplitude computed: {avg_amp:.2f}")
         return avg_amp
 
-    def draw_plot(self, time, temp, drift, compensated, smoothed, transitions, avg_amp, degree):
+    def compute_rise_fall_times(self, time, signal, transitions):
+        """Compute rise and fall times between transitions based on 10%-90% amplitude crossing."""
+        rise_times = []
+        rise_time_starts = []
+        rise_time_ends = []
+        fall_times = []
+        fall_time_starts = []
+        fall_time_ends = []
+
+        avg_distance = np.mean(np.diff(transitions))
+        window = int(avg_distance // 2)  # Half the distance between transitions
+
+        for mid_idx in transitions:
+            start = max(0, mid_idx - window)
+            end = min(len(signal), mid_idx + window)
+
+            segment_time = time[start:end].reset_index(drop = True)
+            segment_signal = signal[start:end].reset_index(drop = True)
+
+            v_min = np.min(segment_signal)
+            v_max = np.max(segment_signal)
+            v_range = v_max - v_min
+            v_10 = v_min + 0.1 * v_range
+            v_90 = v_min + 0.9 * v_range
+
+            # Rising or falling edge?
+            rising = segment_signal.iloc[0] < segment_signal.iloc[-1]
+
+            try:
+                if rising:
+                    t1 = segment_time[segment_signal >= v_10].iloc[0]
+                    t2 = segment_time[segment_signal >= v_90].iloc[0]
+                    rise_times.append(t2 - t1)
+                    rise_time_starts.append(t1)
+                    rise_time_ends.append(t2)
+                else:
+                    t1 = segment_time[segment_signal <= v_90].iloc[0]
+                    t2 = segment_time[segment_signal <= v_10].iloc[0]
+                    fall_times.append(t2 - t1)
+                    fall_time_starts.append(t1)
+                    fall_time_ends.append(t2)
+            except IndexError:
+                self.logger.warning(f"Edge near transition at {mid_idx} has insufficient slope/resolution.")
+
+        avg_rise = np.mean(rise_times) if rise_times else 0
+        avg_fall = np.mean(fall_times) if fall_times else 0
+
+        self.logger.info(f"Average Rise Time: {avg_rise:.3f} s, Average Fall Time: {avg_fall:.3f} s")
+        return avg_rise, avg_fall, [rise_time_starts, rise_time_ends, fall_time_starts, fall_time_ends]
+
+    def draw_plot(self, time, temp, drift, compensated, smoothed, transitions, avg_amp, avg_rise_time, avg_fall_time,
+                  rise_fall_times, degree):
         """Draw the temperature vs time plot with various corrections applied."""
         fig, ax = plt.subplots()
 
@@ -203,15 +285,24 @@ class TemperaturePlotterApp:
         if self.show_smoothed.get():
             ax.plot(time, smoothed, label = 'Smoothed', color = 'green')
 
-        # Mark transition points on the plot
+        # Mark transition, rise and fall points on the plot
+        smooth_mean = np.mean(smoothed)
         if self.show_transitions.get():
-            ax.plot(time[transitions], [np.mean(smoothed)] * len(transitions), "k*", label = "Transitions")
+            ax.plot(time[transitions], [smooth_mean] * len(transitions), "k*", label = "Transitions")
+
+        if self.show_rise_fall_times.get():
+            flat_list = [item for sublist in rise_fall_times for item in sublist]
+            indices = np.searchsorted(time, flat_list)
+            for i, x in enumerate(time[indices]):
+                ax.axvline(x = x, color = 'k', linestyle = '--', linewidth = 1,
+                           label = "Rise/Fall Time" if i == 0 else "")
 
         # Title and axes labels
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Temperature (°C)')
         if self.show_title.get():
-            ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C')
+            ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C\n'
+                         f'Average rise and fall time: {avg_rise_time:.2f}s and {avg_fall_time:.2f}s')
         ax.grid(True)
 
         if self.show_legend.get():
