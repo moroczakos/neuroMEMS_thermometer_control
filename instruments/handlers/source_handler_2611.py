@@ -26,15 +26,15 @@ class SourceHandler2611(SourceHandler):
         instr.write("smua.measure.autorangev = smua.AUTORANGE_ON")  # Set voltage range to auto.
         instr.write("smua.source.output = smua.OUTPUT_ON")  # Turn on output.
 
-        instr.write("smub.measure.autorangei = smub.AUTORANGE_ON")  # Set current range to auto.
-        instr.write("smub.measure.autorangev = smub.AUTORANGE_ON")  # Set voltage range to auto.
-        instr.write("smub.source.output = smub.OUTPUT_OFF")  # Turn off output.
-
     def measure(self):
         instr = self.instrument
-        current = float(instr.query("smub.measure.i()"))
-        voltage = float(instr.query("smub.measure.v()"))
-        resistance = float(instr.query("smua.measure.r()"))
+        # current = float(instr.query("print(smua.measure.i())"))
+        # voltage = float(instr.query("print(smua.measure.v())"))
+        # resistance = float(instr.query("print(smua.measure.r())"))
+
+        iv = instr.query("print(smua.measure.iv())").strip()
+        current, voltage = map(float, iv.split(','))
+        resistance = voltage / current if current != 0 else float('inf')
 
         return {"current": current, "voltage": voltage, "resistance": resistance}
 

@@ -12,8 +12,9 @@ from tkinter import ttk
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
 from instruments.instrument_manager import InstrumentManager
+from utils.constants import Keys, States, EntryConfig
 from utils.file_utils import CsvLogger
-from utils.logger_manager import LoggerManager
+from utils.logger_manager import LoggerManager, safe_execute
 from utils.measurement_profile import MeasurementProfile
 from utils.other_utils import (
     connect_with_popup,
@@ -49,8 +50,8 @@ class ThermometerApp:
         self.running = False
         self.preview_running = False
         self.visa_resource = tk.StringVar()
-        self.interval = tk.DoubleVar(value = self.setting_manager.load_setting("interval"))
-        self.average_count = tk.IntVar(value = self.setting_manager.load_setting("avg_count"))
+        self.interval = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.INTERVAL))
+        self.average_count = tk.IntVar(value = self.setting_manager.load_setting(Keys.AVG_COUNT))
 
         self.interval_curr = self.interval
         self.average_count_curr = self.average_count
@@ -94,57 +95,75 @@ class ThermometerApp:
         self.logger.info("Application started and UI initialized.")
 
     def create_widgets(self):
-        frame = ttk.Frame(self.root, padding = 10)
-        frame.pack(fill = tk.X)
+        self.frame = ttk.Frame(self.root, padding = 10)
+        self.frame.pack(fill = tk.X)
 
-        ttk.Label(frame, text = "VISA Resource:").grid(row = 0, column = 0)
-        self.visa_dropdown = ttk.Combobox(frame, textvariable = self.visa_resource, width = 40)
+        self.create_visa_selector()
+        self.create_thermoprobe_selector()
+        self.create_measurement_settings_section()
+        self.create_live_display_section()
+        self.create_preview_section()
+
+        # Placeholder to match height (6 rows)
+        ttk.Label(self.frame, text = "").grid(row = 4, column = 0, pady = 9.5)
+        ttk.Label(self.frame, text = "").grid(row = 5, column = 0)
+
+    def create_visa_selector(self):
+        ttk.Label(self.frame, text = "VISA Resource:").grid(row = 0, column = 0)
+        self.visa_dropdown = ttk.Combobox(self.frame, textvariable = self.visa_resource, width = 40)
         self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
-        self.refresh_button = ttk.Button(frame, text = "Refresh", command = self.load_visa_resources)
+        self.refresh_button = ttk.Button(self.frame, text = "Refresh", command = self.load_visa_resources)
         self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
 
-        ttk.Label(frame, text = "Thermoprobe:").grid(row = 1, column = 0)
-        self.probe_dropdown = ttk.Combobox(frame, textvariable = self.selected_probe, values = list(self.probes.keys()),
+    def create_thermoprobe_selector(self):
+        ttk.Label(self.frame, text = "Thermoprobe:").grid(row = 1, column = 0)
+        self.probe_dropdown = ttk.Combobox(self.frame, textvariable = self.selected_probe,
+                                           values = list(self.probes.keys()),
                                            width = 11)
         self.probe_dropdown.grid(row = 1, column = 1)
         self.probe_dropdown.bind("<<ComboboxSelected>>", self.update_probe_values)
 
-        ttk.Label(frame, text = "R₀:").grid(row = 1, column = 2)
-        ttk.Entry(frame, textvariable = self.R0, width = 10, state = "readonly").grid(row = 1, column = 3)
+        ttk.Label(self.frame, text = "R₀:").grid(row = 1, column = 2)
+        ttk.Entry(self.frame, textvariable = self.R0, width = 10, state = States.READONLY).grid(row = 1, column = 3)
 
-        ttk.Label(frame, text = "TCR:").grid(row = 1, column = 4)
-        ttk.Entry(frame, textvariable = self.TCR, width = 10, state = "readonly").grid(row = 1, column = 5)
+        ttk.Label(self.frame, text = "TCR:").grid(row = 1, column = 4)
+        ttk.Entry(self.frame, textvariable = self.TCR, width = 10, state = States.READONLY).grid(row = 1, column = 5)
 
-        ttk.Label(frame, text = "Interval (s):").grid(row = 2, column = 0)
-        ttk.Entry(frame, textvariable = self.interval, width = 6).grid(row = 2, column = 1)
-        self.interval.trace("w", lambda *args: self.save_entry_value("interval", self.interval))
+    def create_measurement_settings_section(self):
+        self._entry_with_label(2, 0, "Interval (s):", self.interval, self.save_entry_value, Keys.INTERVAL)
+        self._entry_with_label(2, 2, "Average count:", self.average_count, self.save_entry_value, Keys.AVG_COUNT)
 
-        ttk.Label(frame, text = "Average count:").grid(row = 2, column = 2)
-        ttk.Entry(frame, textvariable = self.average_count, width = 6).grid(row = 2, column = 3)
-        self.average_count.trace("w", lambda *args: self.save_entry_value("avg_count", self.average_count))
-
-        self.start_button = ttk.Button(frame, text = "Start", command = self.start_measurement)
+        self.start_button = ttk.Button(self.frame, text = "Start", command = self.start_measurement)
         self.start_button.grid(row = 2, column = 4)
-        self.stop_button = ttk.Button(frame, text = "Stop", command = self.stop_measurement, state = "disabled")
+
+        self.stop_button = ttk.Button(self.frame, text = "Stop", command = self.stop_measurement,
+                                      state = States.DISABLED)
         self.stop_button.grid(row = 2, column = 5)
 
-        ttk.Label(frame, text = f"Live {self.profile.y1_label}:").grid(row = 3, column = 0, sticky = 'e')
-        ttk.Label(frame, textvariable = self.resistance_y1).grid(row = 3, column = 1, sticky = 'w')
-        ttk.Label(frame, text = f"Live {self.profile.y2_label}:").grid(row = 3, column = 2, sticky = 'e')
-        ttk.Label(frame, textvariable = self.temperature_y2, foreground = 'red').grid(row = 3, column = 3, sticky = 'w')
+    def create_live_display_section(self):
+        ttk.Label(self.frame, text = f"Live {self.profile.y1_label}:").grid(row = 3, column = 0, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.resistance_y1).grid(row = 3, column = 1, sticky = 'w')
+        ttk.Label(self.frame, text = f"Live {self.profile.y2_label}:").grid(row = 3, column = 2, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.temperature_y2, foreground = 'red').grid(row = 3, column = 3,
+                                                                                           sticky = 'w')
 
-        self.preview_start_button = ttk.Button(frame, text = "Start Preview", command = self.start_preview)
+    def create_preview_section(self):
+        self.preview_start_button = ttk.Button(self.frame, text = "Start Preview", command = self.start_preview)
         self.preview_start_button.grid(row = 3, column = 4)
-        self.preview_stop_button = ttk.Button(frame, text = "Stop Preview", command = self.stop_preview,
-                                              state = "disabled")
+        self.preview_stop_button = ttk.Button(self.frame, text = "Stop Preview", command = self.stop_preview,
+                                              state = States.DISABLED)
         self.preview_stop_button.grid(row = 3, column = 5)
 
-        # Placeholder to match height (6 rows)
-        ttk.Label(frame, text = "").grid(row = 4, column = 0, pady = 8)
-        ttk.Label(frame, text = "").grid(row = 5, column = 0)
-        ttk.Label(frame, text = "").grid(row = 6, column = 0)
+    def _entry_with_label(self, row, col, label, variable, trace_callback=None, key=None):
+        ttk.Label(self.frame, text = label).grid(row = row, column = col)
+        entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH, justify = EntryConfig.JUSTIFY)
+        entry.grid(row = row, column = col + 1)
+        if trace_callback and key:
+            variable.trace_add("write", lambda *args: trace_callback(key, variable))
+        return entry
 
+    @safe_execute
     def load_visa_resources(self):
         resources = load_visa_resources_util(self.instrument_manager,
                                              only_tcpip = False,
@@ -172,6 +191,7 @@ class ThermometerApp:
         self.temperature_y2.set(round(y2, 2))
         return y1, y2
 
+    @safe_execute
     def update_probe_values(self, event=None):
         probe = self.selected_probe.get()
         if probe in self.probes:
@@ -180,32 +200,36 @@ class ThermometerApp:
             self.setting_manager.save_setting("probe", probe)
             self.logger.info(f"Probe selected: {probe}, R0={self.R0.get()}, TCR={self.TCR.get()}")
 
+    @safe_execute
     def start_preview(self):
         if not self._connect():
             return
         self.preview_running = True
-        self.preview_start_button.config(state = "disabled")
-        self.preview_stop_button.config(state = "normal")
-        self.start_button.config(state = "disabled")
+        self.preview_start_button.config(state = States.DISABLED)
+        self.preview_stop_button.config(state = States.NORMAL)
+        self.start_button.config(state = States.DISABLED)
         threading.Thread(target = self.preview_loop, daemon = True).start()
         self.logger.info("Started preview mode.")
 
+    @safe_execute
     def stop_preview(self):
         self.preview_running = False
-        self.preview_start_button.config(state = "normal")
-        self.preview_stop_button.config(state = "disabled")
-        self.start_button.config(state = "normal")
+        self.preview_start_button.config(state = States.NORMAL)
+        self.preview_stop_button.config(state = States.DISABLED)
+        self.start_button.config(state = States.NORMAL)
 
         self.instrument_manager.disconnect("dmm")
         self.logger.info("Stopped preview mode.")
 
+    @safe_execute
     def enable_preview(self):
-        self.preview_start_button.config(state = "normal")
-        self.preview_stop_button.config(state = "disabled")
+        self.preview_start_button.config(state = States.NORMAL)
+        self.preview_stop_button.config(state = States.DISABLED)
 
+    @safe_execute
     def disable_preview(self):
-        self.preview_start_button.config(state = "disabled")
-        self.preview_stop_button.config(state = "disabled")
+        self.preview_start_button.config(state = States.DISABLED)
+        self.preview_stop_button.config(state = States.DISABLED)
 
     def preview_loop(self):
         while self.preview_running:
@@ -216,13 +240,14 @@ class ThermometerApp:
                 self.logger.error(f"Preview error: {e}\n {traceback.format_exc()}")
                 break
 
+    @safe_execute
     def start_measurement(self):
         if not self._connect():
             return
 
         self.running = True
-        self.start_button.config(state = "disabled")
-        self.stop_button.config(state = "normal")
+        self.start_button.config(state = States.DISABLED)
+        self.stop_button.config(state = States.NORMAL)
         self.disable_preview()
 
         self.csv_logger.create(f"log_{self.selected_probe.get()}_{self.profile.name.replace('/', '_')}",
@@ -240,11 +265,12 @@ class ThermometerApp:
         threading.Thread(target = self.data_worker_loop, daemon = True).start()
         self.logger.info("Started measurement.")
 
+    @safe_execute
     def stop_measurement(self):
         if self.running:
             self.running = False
-            self.start_button.config(state = "normal")
-            self.stop_button.config(state = "disabled")
+            self.start_button.config(state = States.NORMAL)
+            self.stop_button.config(state = States.DISABLED)
             self.enable_preview()
 
             self.instrument_manager.disconnect("dmm")

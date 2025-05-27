@@ -24,7 +24,7 @@ class TemperatureMeasurementStationApp:
 
         # Create a frame for the buttons
         self.button_frame = ttk.Frame(root, relief="solid", borderwidth=2)
-        self.button_frame.place(relx=0.5, y = 250, anchor="center")
+        self.button_frame.place(relx=0.5, y = 200, anchor="center")
 
         # Create the start/stop buttons inside the button frame
         ttk.Label(self.button_frame, text = "Control both apps", justify = 'center', font = ("Arial", 18)).pack()
