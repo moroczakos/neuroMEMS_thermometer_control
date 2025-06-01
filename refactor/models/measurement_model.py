@@ -1,5 +1,4 @@
 # ─── Standard Library ────────────────────────────────────────────────────────
-import os
 import queue
 import threading
 import time
@@ -54,11 +53,11 @@ class MeasurementModel:
     def attach(self, observer):
         self.observers.append(observer)
 
-    def notify_observers(self):
+    def _notify_observers(self):
         for observer in self.observers:
             observer.update(self.running, self.timestamp, self.current, self.voltage, self.resistance)
 
-    def notify_logger(self, message_type, message):
+    def _notify_logger(self, message_type, message):
         for observer in self.observers:
             observer.log(message_type, message)
 
@@ -111,14 +110,14 @@ class MeasurementModel:
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
-        threading.Thread(target = self.cycle_loop, daemon = True).start()
-        threading.Thread(target = self.data_worker_loop, daemon = True).start()
-        self.notify_logger(Logger.INFO, "Started measurement.")
+        threading.Thread(target = self._cycle_loop, daemon = True).start()
+        threading.Thread(target = self._data_worker_loop, daemon = True).start()
+        self._notify_logger(Logger.INFO, "Started measurement.")
 
     def stop_data_collection(self):
         if self.running:
             self.running = False
-            self.notify_observers()
+            self._notify_observers()
 
             if self.executor:
                 self.executor.shutdown(wait = False)
@@ -126,14 +125,14 @@ class MeasurementModel:
             if self.instrument_manager.get_instrument(self.instrument_alias):
                 self.instrument_manager.disconnect(self.instrument_alias)
 
-            self.notify_logger(Logger.INFO, "Measurement stopped.")
+            self._notify_logger(Logger.INFO, "Measurement stopped.")
 
             if hasattr(self, 'csv_logger'):
-                self.notify_logger(Logger.INFO, f"Data saved to {self.csv_logger.get_filename()}")
+                self._notify_logger(Logger.INFO, f"Data saved to {self.csv_logger.get_filename()}")
                 self.csv_logger.close()
 
-    def cycle_loop(self):
-        threading.Thread(target = self.measure_loop, daemon = True).start()
+    def _cycle_loop(self):
+        threading.Thread(target = self._measure_loop, daemon = True).start()
         source_handler = self.instrument_manager.get_handler(self.instrument_alias)
 
         try:
@@ -145,27 +144,30 @@ class MeasurementModel:
                 self.duration_high, self.duration_low)
 
             for cycle in range(self.cycles):
-                if not self.running: break
-                self.notify_logger(Logger.INFO, f"Cycle {cycle + 1}/{self.cycles}: Setting current to {first_current}A")
+                if not self.running:
+                    break
+                self._notify_logger(Logger.INFO,
+                                    f"Cycle {cycle + 1}/{self.cycles}: Setting current to {first_current}A")
                 source_handler.set_current(first_current)
                 time.sleep(first_duration)
 
-                if not self.running: break
-                self.notify_logger(Logger.INFO,
-                                   f"Cycle {cycle + 1}/{self.cycles}: Setting current to {second_current}A")
+                if not self.running:
+                    break
+                self._notify_logger(Logger.INFO,
+                                    f"Cycle {cycle + 1}/{self.cycles}: Setting current to {second_current}A")
                 source_handler.set_current(second_current)
                 time.sleep(second_duration)
         except Exception as e:
-            self.notify_logger(Logger.ERROR, f"Cycle Error {e}\n {traceback.format_exc()}")
+            self._notify_logger(Logger.ERROR, f"Cycle Error {e}\n {traceback.format_exc()}")
 
         if self.running:
             self.stop_data_collection()
 
-    def measure_loop(self):
+    def _measure_loop(self):
         while self.running:
             try:
-                self.timestamp, self.current, self.voltage, resistance = self.perform_measurement()
-                self.notify_observers()
+                self.timestamp, self.current, self.voltage, resistance = self._perform_measurement()
+                self._notify_observers()
 
                 self.data_queue.put(
                     (self.timestamp,
@@ -176,14 +178,14 @@ class MeasurementModel:
                 time.sleep(self.interval)
             except Exception as e:
                 self.running = False
-                self.notify_logger(Logger.ERROR, f"Measurement error: {e}\n {traceback.format_exc()}")
+                self._notify_logger(Logger.ERROR, f"Measurement error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error(self.instrument_alias)
                 if error:
-                    self.notify_logger(Logger.ERROR, error)
+                    self._notify_logger(Logger.ERROR, error)
                 break
 
-    def perform_measurement(self):
+    def _perform_measurement(self):
         source_handler = self.instrument_manager.get_handler(self.instrument_alias)
         timestamp = time.time() - self.start_time
         meas_dict = self.profile.measure_func(source_handler)
@@ -199,19 +201,19 @@ class MeasurementModel:
 
         return timestamp, current, voltage, resistance
 
-    def data_worker_loop(self):
+    def _data_worker_loop(self):
         while self.running or not self.data_queue.empty():
             try:
                 if self.data_queue.qsize() + 2 > Other.MAX_QUEUE_SIZE:
-                    self.notify_logger(Logger.WARNING, "Queue backlog detected during measurement logging!")
+                    self._notify_logger(Logger.WARNING, "Queue backlog detected during measurement logging!")
                 timestamp, current, voltage, resistance = self.data_queue.get(timeout = 0.5)
                 if self.running:
-                    self.executor.submit(self.safe_log, timestamp, current, voltage, resistance)
+                    self.executor.submit(self._safe_log, timestamp, current, voltage, resistance)
             except queue.Empty:
                 continue
 
-    def safe_log(self, timestamp, current, voltage, resistance):
+    def _safe_log(self, timestamp, current, voltage, resistance):
         try:
             self.csv_logger.write_row([timestamp, current, voltage, resistance])
         except Exception as e:
-            self.notify_logger(Logger.ERROR, f"Logging error: {e}\n {traceback.format_exc()}")
+            self._notify_logger(Logger.ERROR, f"Logging error: {e}\n {traceback.format_exc()}")
