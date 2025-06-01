@@ -1,6 +1,7 @@
 import threading
 import tkinter as tk
 import traceback
+from pathlib import Path
 from tkinter import messagebox
 from utils.ui_utils.loading_popup import LoadingPopup
 
@@ -67,3 +68,11 @@ def connect_with_popup(root, visa_address, logger, connect_func, timeout=10, loa
 
     logger.info(f"Connected to VISA resource: {visa_address}")
     return True
+
+
+def find_project_root(marker="README.md"):
+    path = Path(__file__).resolve()
+    for parent in path.parents:
+        if (parent / marker).exists():
+            return parent
+    return path.parent  # fallback

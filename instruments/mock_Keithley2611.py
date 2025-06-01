@@ -23,6 +23,8 @@ class MockKeithley2611:
             return 1.0
         if "smua.measure.r()" in command:
             return 5.0
+        if "smua.measure.iv()" in command:
+            return f"{self.current}, 1.0"
         if "*IDN?" in command:
             return "Keithley Instruments Inc., 2611, 123456, 1.2.3"
         elif "SYST:ERR?" in command:

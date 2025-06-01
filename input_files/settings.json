@@ -1,14 +1,17 @@
 {
-    "probe": "SMA15",
-    "interval": 0.01,
+    "probe": "TE6",
+    "interval": 0.02,
     "avg_count": 3,
-    "current_high": 0.4,
-    "current_low": 0.1,
+    "current_high": 0.5,
+    "current_low": 0.001,
     "duration_high": 2,
     "duration_low": 4,
-    "cycles": 3,
+    "cycles": 2,
     "device_settings": {
-        "Current range (A)": 0.6,
-        "Voltage limit (V)": 5.0
-    }
+        "Current range (A)": 0.5,
+        "Voltage limit (V)": 25.0
+    },
+    "input_files": "input_files",
+    "output_files": "output_files",
+    "log_files": "logs"
 }

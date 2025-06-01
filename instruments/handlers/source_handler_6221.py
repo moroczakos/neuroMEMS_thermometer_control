@@ -1,3 +1,5 @@
+import time
+
 from instruments.handlers.source_handler import SourceHandler
 from instruments.mock_Keithley6221 import MockKeithley6221
 
@@ -9,7 +11,7 @@ class SourceHandler6221(SourceHandler):
     def connect(self, resource_manager):
         if self.use_mock or self.address == "MOCK_6221":
             self.instrument = self._get_mock()
-            # time.sleep(11)
+            #time.sleep(11)
         else:
             self.instrument = resource_manager.open_resource(self.address)
         self.reset()

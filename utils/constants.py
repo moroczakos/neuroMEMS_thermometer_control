@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class Keys:
     CURRENT_HIGH = "current_high"
     CURRENT_LOW = "current_low"
@@ -27,6 +30,12 @@ class Labels:
     OTHER_SETTINGS = "Other settings:"
     SAVE = "Save"
     STARTS_WITH_LOW = "Starts with low current:"
+
+
+class Logger(Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 class UI:
