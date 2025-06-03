@@ -1,13 +1,13 @@
 # ─── Standard Library ────────────────────────────────────────────────────────
 import queue
-import threading
 import time
 import traceback
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
-from utils.constants import Keys, Logger, Other
-from utils.file_utils import CsvLogger
+
+from utils.csv_data_logger import CSVDataLogger
+from utils.constants import Keys, Logger
 
 
 class MeasurementModel:
@@ -28,9 +28,6 @@ class MeasurementModel:
         # Define measurement profile
         self.profile = profile
 
-        # Logger
-        self.csv_logger = CsvLogger()
-
         # Instrument
         self.instrument_manager = instrument_manager
         self.instrument_alias = None
@@ -46,6 +43,7 @@ class MeasurementModel:
 
         self.running = False
         self.observers = []
+        self.csv_data_logger = CSVDataLogger(self.output_file_path, self.profile, self._notify_logger)
 
     def set_start_low(self, start_low):
         self.start_low = start_low
@@ -103,15 +101,14 @@ class MeasurementModel:
 
     def start_data_collection(self):
         self.running = True
-
-        self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
-                               self.output_file_path)
-
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
-        threading.Thread(target = self._cycle_loop, daemon = True).start()
-        threading.Thread(target = self._data_worker_loop, daemon = True).start()
+        self.executor.submit(self._cycle_loop)
+
+        self.csv_data_logger.reset()
+        self.csv_data_logger.start()
+
         self._notify_logger(Logger.INFO, "Started measurement.")
 
     def stop_data_collection(self):
@@ -126,13 +123,10 @@ class MeasurementModel:
                 self.instrument_manager.disconnect(self.instrument_alias)
 
             self._notify_logger(Logger.INFO, "Measurement stopped.")
-
-            if hasattr(self, 'csv_logger'):
-                self._notify_logger(Logger.INFO, f"Data saved to {self.csv_logger.get_filename()}")
-                self.csv_logger.close()
+            self.csv_data_logger.stop()
 
     def _cycle_loop(self):
-        threading.Thread(target = self._measure_loop, daemon = True).start()
+        self.executor.submit(self._measure_loop)
         source_handler = self.instrument_manager.get_handler(self.instrument_alias)
 
         try:
@@ -169,7 +163,7 @@ class MeasurementModel:
                 self.timestamp, self.current, self.voltage, resistance = self._perform_measurement()
                 self._notify_observers()
 
-                self.data_queue.put(
+                self.csv_data_logger.enqueue(
                     (self.timestamp,
                      self.current,
                      self.voltage if self.voltage is not None else float('nan'),
@@ -200,20 +194,3 @@ class MeasurementModel:
             resistance = self.profile.post_process_func(current, voltage) if self.profile.post_process_func else None
 
         return timestamp, current, voltage, resistance
-
-    def _data_worker_loop(self):
-        while self.running or not self.data_queue.empty():
-            try:
-                if self.data_queue.qsize() + 2 > Other.MAX_QUEUE_SIZE:
-                    self._notify_logger(Logger.WARNING, "Queue backlog detected during measurement logging!")
-                timestamp, current, voltage, resistance = self.data_queue.get(timeout = 0.5)
-                if self.running:
-                    self.executor.submit(self._safe_log, timestamp, current, voltage, resistance)
-            except queue.Empty:
-                continue
-
-    def _safe_log(self, timestamp, current, voltage, resistance):
-        try:
-            self.csv_logger.write_row([timestamp, current, voltage, resistance])
-        except Exception as e:
-            self._notify_logger(Logger.ERROR, f"Logging error: {e}\n {traceback.format_exc()}")

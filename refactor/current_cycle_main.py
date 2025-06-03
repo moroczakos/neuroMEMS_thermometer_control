@@ -1,0 +1,74 @@
+# ─── Standard Library ────────────────────────────────────────────────────────
+import os
+import tkinter as tk
+
+# ─── Local Modules ───────────────────────────────────────────────────────────
+from refactor.controllers.current_cycle_controller import CurrentCycleController
+from refactor.models.current_cycle_model import MeasurementModel
+from refactor.views.current_cycle_view import CurrentCycleView
+from instruments.instrument_manager import InstrumentManager
+from utils.other_utils import find_project_root
+from utils.settings_utils import SettingManager
+from utils.logger_manager import LoggerManager
+from utils.measurement_profile import MeasurementProfile
+
+
+class CurrentCycleMain:
+    def __init__(self, root, main_app=None):
+        self.root = tk.Frame(root)
+        self.root.pack(fill = 'both', expand = True)
+
+        self.project_root = find_project_root()
+        self.setting_manager = self._load_settings()
+        self.logger = self._setup_logger()
+
+        instrument_manager = InstrumentManager()
+        profile = self._create_measurement_profile()
+
+        model = MeasurementModel(
+            instrument_manager,
+            self.setting_manager,
+            profile,
+            self.input_file_path,
+            self.output_file_path
+        )
+
+        view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile, main_app)
+        self.controller = CurrentCycleController(model, view)
+
+    def _load_settings(self):
+        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
+        setting_manager = SettingManager(settings_path)
+
+        self.input_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("input_files")
+        )
+        self.output_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("output_files")
+        )
+        self.log_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("log_files")
+        )
+
+        return setting_manager
+
+    def _setup_logger(self):
+        log_path = os.path.join(self.log_file_path, "current_source_app.log")
+        return LoggerManager(log_file = log_path).get_logger()
+
+    def _create_measurement_profile(self):
+        return MeasurementProfile(
+            name = "Current/Voltage/Resistance",
+            headers = ["Timestamp", "Current (A)", "Voltage (V)", "Resistance (Ohms)"],
+            y1_label = "Current (A)",
+            y2_label = "Voltage (V)",
+            measure_func = lambda source: source.measure(),
+            post_process_func = lambda a, v: v / a if v is not None else float('nan')
+        )
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("Current Source")
+    app = CurrentCycleMain(root)
+    root.mainloop()

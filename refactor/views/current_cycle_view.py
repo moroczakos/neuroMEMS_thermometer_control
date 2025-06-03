@@ -8,7 +8,7 @@ from tkinter import ttk, messagebox
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from instruments.instrument_manager import InstrumentManager
-from utils.ui_utils.plotter import LiveDataPlotter
+from utils.ui_utils.live_plotter import LiveDataPlotter
 from utils.logger_manager import safe_execute
 from utils.other_utils import (
     connect_with_popup,
@@ -22,9 +22,10 @@ from utils.constants import Keys, EntryConfig, States, Labels, Logger
 
 
 class CurrentCycleView:
-    def __init__(self, root, setting_manager, logger, profile):
+    def __init__(self, root, setting_manager, logger, profile, parent_app=None):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
+        self.parent_app = parent_app
         self.controller = None
         self.live_data_plotter = None
 
@@ -60,7 +61,6 @@ class CurrentCycleView:
         self.data_queue = queue.Queue()
         self.current_y1 = tk.DoubleVar()
         self.voltage_y2 = tk.DoubleVar()
-        self.executor = None
 
         self._create_widgets()
         self._setup_plot()
@@ -334,6 +334,9 @@ class CurrentCycleView:
             self._set_widget_states(enabled = True)
 
             self.log(Logger.INFO, "Live display stopped.")
+
+            if self.parent_app:
+                self.parent_app.stop_apps()
 
     def update(self, running, timestamp, current, voltage, _):
         if not running:
