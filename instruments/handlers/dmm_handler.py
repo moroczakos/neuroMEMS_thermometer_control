@@ -23,7 +23,9 @@ class DMMHandler(InstrumentHandler):
         instr = self.instrument
         instr.write("INIT")
 
-        return float(instr.query("FETCH?").strip())
+        resistance = float(instr.query("FETCH?").strip())
+
+        return {"resistance": resistance}
 
     def get_error(self):
         instr = self.instrument

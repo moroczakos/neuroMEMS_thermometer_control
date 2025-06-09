@@ -33,6 +33,9 @@ class LiveDataPlotter:
         self.average_count_var = average_count
 
     def reset(self):
+        if self.executor:
+            self.executor.shutdown(wait = False)
+
         self.data_queue = queue.Queue()
         self.data_counter = 0
         self.total_y1 = 0.0

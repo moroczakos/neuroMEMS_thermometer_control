@@ -8,6 +8,7 @@ import traceback
 # ─── Third-Party Libraries ───────────────────────────────────────────────────
 import tkinter as tk
 from tkinter import ttk, messagebox
+from datetime import datetime
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
@@ -320,8 +321,11 @@ class CurrentCycleApp:
         self.set_widget_states(enabled = False)
 
         # File setup
-        self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
-                               self.output_file_path)
+        self.csv_logger.set_file_name(
+            f"log_{self.profile.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        self.csv_logger.set_file_directory(self.output_file_path)
+        self.csv_logger.set_first_row(self.profile.headers)
+        self.csv_logger.create()
 
         self.timestamps = []
         self.current_y1_data = []
@@ -350,7 +354,7 @@ class CurrentCycleApp:
             self.logger.info("Measurement stopped.")
 
             if hasattr(self, 'csv_logger'):
-                self.logger.info(f"Data saved to {self.csv_logger.get_filename()}")
+                self.logger.info(f"Data saved to {self.csv_logger.get_full_filename()}")
                 self.csv_logger.close()
 
             if self.main_app:

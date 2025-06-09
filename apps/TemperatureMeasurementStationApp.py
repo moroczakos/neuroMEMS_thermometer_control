@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
-from apps.CurrentSourceApp import CurrentCycleApp
-from apps.ThermometerApp import ThermometerApp
+from refactor.thermometer_main import ThermometerMain
+from refactor.current_cycle_main import CurrentCycleMain
+from utils.constants import EntryConfig, States
 
 
 class TemperatureMeasurementStationApp:
@@ -16,18 +17,21 @@ class TemperatureMeasurementStationApp:
         self.right_frame.pack(side = 'right', fill = 'both', expand = True)
 
         # Add labels at the top of each frame
-        ttk.Label(self.left_frame, text = "Current source app", justify = 'center', font = ("Arial", 24)).pack()
-        self.cycle_app = CurrentCycleApp(self.left_frame, self)
+        ttk.Label(self.left_frame, text = "Current source app", justify = EntryConfig.JUSTIFY,
+                  font = ("Arial", 24)).pack()
+        self.cycle_app = CurrentCycleMain(self.left_frame, self)
 
-        ttk.Label(self.right_frame, text = "Thermometer app", justify = 'center', font = ("Arial", 24)).pack()
-        self.thermometer_app = ThermometerApp(self.right_frame, self)
+        ttk.Label(self.right_frame, text = "Thermometer app", justify = EntryConfig.JUSTIFY,
+                  font = ("Arial", 24)).pack()
+        self.thermometer_app = ThermometerMain(self.right_frame, self)
 
         # Create a frame for the buttons
-        self.button_frame = ttk.Frame(root, relief="solid", borderwidth=2)
-        self.button_frame.place(relx=0.5, y = 200, anchor="center")
+        self.button_frame = ttk.Frame(root, relief = "solid", borderwidth = 2)
+        self.button_frame.place(relx = 0.5, y = 200, anchor = "center")
 
         # Create the start/stop buttons inside the button frame
-        ttk.Label(self.button_frame, text = "Control both apps", justify = 'center', font = ("Arial", 18)).pack()
+        ttk.Label(self.button_frame, text = "Control both apps", justify = EntryConfig.JUSTIFY,
+                  font = ("Arial", 18)).pack()
         self.start_button = ttk.Button(self.button_frame, text = "Start", command = self.start_apps)
         self.start_button.pack(side = 'left', padx = 10)
 
@@ -37,17 +41,23 @@ class TemperatureMeasurementStationApp:
 
     def start_apps(self):
         """Starts both applications."""
-        self.cycle_app.start_measurement()  # Call the start method of CurrentCycleApp
-        self.thermometer_app.start_measurement()  # Call the start method of ThermometerApp
-        self.start_button.config(state = "disabled")
-        self.stop_button.config(state = "normal")
+        self.cycle_app.controller.start_measurement()  # Call the start method of CurrentCycleApp
+        self.thermometer_app.controller.start_measurement()  # Call the start method of ThermometerApp
+        self.start_button.config(state = States.DISABLED)
+        self.stop_button.config(state = States.NORMAL)
 
     def stop_apps(self):
         """Stops both applications."""
-        self.cycle_app.stop_measurement()  # Call the stop method of CurrentCycleApp
-        self.thermometer_app.stop_measurement()  # Call the stop method of ThermometerApp
-        self.start_button.config(state = "normal")
-        self.stop_button.config(state = "disabled")
+        self.cycle_app.controller.stop_measurement()  # Call the stop method of CurrentCycleApp
+        self.thermometer_app.controller.stop_measurement()  # Call the stop method of ThermometerApp
+        self.start_button.config(state = States.NORMAL)
+        self.stop_button.config(state = States.DISABLED)
+
+    def set_widget_states(self, enabled: bool):
+        state = States.NORMAL if enabled else States.DISABLED
+        self.start_button.config(state = state)
+        self.stop_button.config(state = States.NORMAL if not enabled else States.DISABLED)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

@@ -4,13 +4,14 @@ import queue
 import threading
 import time
 import traceback
+from datetime import datetime
 
 # ─── Third-Party Libraries ───────────────────────────────────────────────────
 import tkinter as tk
 from tkinter import ttk
+from concurrent.futures import ThreadPoolExecutor
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
-from concurrent.futures import ThreadPoolExecutor
 from instruments.instrument_manager import InstrumentManager
 from utils.constants import Keys, States, EntryConfig
 from utils.file_utils import CsvLogger
@@ -185,7 +186,7 @@ class ThermometerApp:
 
     def perform_measurement(self):
         dmm_handler = self.instrument_manager.get_handler("dmm")
-        y1 = self.profile.measure_func(dmm_handler)
+        y1 = self.profile.measure_func(dmm_handler)["resistance"]
         y2 = self.profile.post_process_func(y1, self.R0.get(), self.TCR.get()) if self.profile.post_process_func else y1
         self.resistance_y1.set(round(y1, 4))
         self.temperature_y2.set(round(y2, 2))
@@ -250,11 +251,20 @@ class ThermometerApp:
         self.stop_button.config(state = States.NORMAL)
         self.disable_preview()
 
-        self.csv_logger.create(f"log_{self.selected_probe.get()}_{self.profile.name.replace('/', '_')}",
-                               self.profile.headers,
-                               self.output_file_path)
-        self.raw_csv_logger.create(f"log_Resistance", self.profile.headers[0:2],
-                                   self.output_file_path)
+        start_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        self.csv_logger.set_file_name(
+            f"log_{self.profile.name.replace('/', '_')}_{self.selected_probe.get()}_{start_time}.csv")
+        self.csv_logger.set_file_directory(self.output_file_path)
+        self.csv_logger.set_first_row(self.profile.headers)
+        self.csv_logger.create()
+
+        self.raw_csv_logger.set_file_name(
+            f"log_Resistance_{start_time}.csv")
+        self.raw_csv_logger.set_file_directory(self.output_file_path)
+        self.raw_csv_logger.set_first_row(self.profile.headers[0:2])
+        self.raw_csv_logger.create()
+
         self.timestamps.clear()
         self.resistance_y1_data.clear()
         self.temperature_y2_data.clear()
@@ -279,7 +289,7 @@ class ThermometerApp:
             self.csv_logger.close()
             self.raw_csv_logger.close()
             self.logger.info(
-                f"Measurement stopped. Data saved to {self.csv_logger.get_filename()} and {self.raw_csv_logger.get_filename()}")
+                f"Measurement stopped. Data saved to {self.csv_logger.get_full_filename()} and {self.raw_csv_logger.get_full_filename()}")
 
             if self.main_app:
                 self.main_app.stop_apps()  # Stop main app

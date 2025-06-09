@@ -3,9 +3,9 @@ import os
 import tkinter as tk
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
-from refactor.controllers.current_cycle_controller import CurrentCycleController
-from refactor.models.current_cycle_model import CurrentCycleModel
-from refactor.views.current_cycle_view import CurrentCycleView
+from refactor.controllers.thermometer_controller import ThermometerController
+from refactor.models.thermometer_model import ThermometerModel
+from refactor.views.thermometer_view import ThermometerView
 from instruments.instrument_manager import InstrumentManager
 from utils.other_utils import find_project_root
 from utils.settings_utils import SettingManager
@@ -13,7 +13,7 @@ from utils.logger_manager import LoggerManager
 from utils.measurement_profile import MeasurementProfile
 
 
-class CurrentCycleMain:
+class ThermometerMain:
     def __init__(self, root, main_app=None):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
@@ -25,15 +25,16 @@ class CurrentCycleMain:
         instrument_manager = InstrumentManager()
         profile = self._create_measurement_profile()
 
-        model = CurrentCycleModel(
+        model = ThermometerModel(
             instrument_manager,
             self.setting_manager,
             profile,
+            self.input_file_path,
             self.output_file_path
         )
 
-        view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile, main_app)
-        self.controller = CurrentCycleController(model, view)
+        view = ThermometerView(self.root, self.probe_path, self.setting_manager, self.logger, profile, main_app)
+        self.controller = ThermometerController(model, view)
 
     def _load_settings(self):
         settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
@@ -43,31 +44,32 @@ class CurrentCycleMain:
             self.project_root, setting_manager.load_setting("input_files")
         )
         self.output_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files"), "current_cycle"
+            self.project_root, setting_manager.load_setting("output_files"), "thermometer"
         )
         self.log_file_path = os.path.join(
             self.project_root, setting_manager.load_setting("log_files")
         )
+        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
 
         return setting_manager
 
     def _setup_logger(self):
-        log_path = os.path.join(self.log_file_path, "current_source_app.log")
+        log_path = os.path.join(self.log_file_path, "thermometer_app.log")
         return LoggerManager(log_file = log_path).get_logger()
 
     def _create_measurement_profile(self):
         return MeasurementProfile(
-            name = "Current/Voltage/Resistance",
-            headers = ["Timestamp", "Current (A)", "Voltage (V)", "Resistance (Ohms)"],
-            y1_label = "Current (A)",
-            y2_label = "Voltage (V)",
-            measure_func = lambda source: source.measure(),
-            post_process_func = lambda a, v: v / a if v is not None else float('nan')
+            name = "Resistance/Temperature",
+            headers = ["Timestamp", "Resistance (Ohms)", "Temperature (Celsius)"],
+            y1_label = "Resistance (Ohms)",
+            y2_label = "Temperature (°C)",
+            measure_func = lambda dmm: dmm.measure(),
+            post_process_func = lambda r, R0, TCR: (r / R0 - 1) / TCR if R0 > 0 and TCR > 0 else float('nan')
         )
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("Current Source")
-    app = CurrentCycleMain(root)
+    root.title("Thermometer")
+    app = ThermometerMain(root)
     root.mainloop()

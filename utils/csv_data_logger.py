@@ -9,18 +9,27 @@ from utils.constants import Logger, Other
 
 
 class CSVDataLogger:
-    def __init__(self, output_file_path, profile, logger):
+    def __init__(self, logger):
         self.data_queue = None
-        self.output_file_path = output_file_path
-        self.profile = profile
+        self.filename = None
+        self.file_directory = None
+        self.first_row = None
         self.data = []
         self.running = False
         self.logger = logger
         self.csv_logger = CsvLogger()
-
         self.executor = None
 
         self.reset()
+
+    def set_file_name(self, file_name):
+        self.filename = file_name
+
+    def set_file_directory(self, directory):
+        self.file_directory = directory
+
+    def set_first_row(self, first_row):
+        self.first_row = first_row
 
     def reset(self):
         self.data_queue = queue.Queue()
@@ -29,8 +38,11 @@ class CSVDataLogger:
 
     def start(self):
         self.running = True
-        self.csv_logger.create(f"log_{self.profile.name.replace('/', '_')}", self.profile.headers,
-                               self.output_file_path)
+
+        self.csv_logger.set_file_name(self.filename)
+        self.csv_logger.set_file_directory(self.file_directory)
+        self.csv_logger.set_first_row(self.first_row)
+        self.csv_logger.create()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._worker_loop)
@@ -40,7 +52,7 @@ class CSVDataLogger:
         if self.executor:
             self.executor.shutdown(wait = False)
 
-        self.logger(Logger.INFO, f"Data saved to {self.csv_logger.get_filename()}")
+        self.logger(Logger.INFO, f"Data saved to {self.csv_logger.get_full_filename()}")
 
     def enqueue(self, data):
         self.data_queue.put(data)

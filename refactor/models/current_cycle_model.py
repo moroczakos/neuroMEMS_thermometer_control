@@ -2,19 +2,18 @@
 import queue
 import time
 import traceback
-
-# ─── Local Modules ───────────────────────────────────────────────────────────
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
+# ─── Local Modules ───────────────────────────────────────────────────────────
 from utils.csv_data_logger import CSVDataLogger
 from utils.constants import Keys, Logger
 
 
-class MeasurementModel:
-    def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path):
+class CurrentCycleModel:
+    def __init__(self, instrument_manager, setting_manager, profile, output_file_path):
         # Settings
         self.setting_manager = setting_manager
-        self.input_file_path = input_file_path
         self.output_file_path = output_file_path
         self.start_low = True  # Square wave current starts with low value
         self.current_high = None
@@ -43,7 +42,7 @@ class MeasurementModel:
 
         self.running = False
         self.observers = []
-        self.csv_data_logger = CSVDataLogger(self.output_file_path, self.profile, self._notify_logger)
+        self.csv_data_logger = CSVDataLogger(self._notify_logger)
 
     def set_start_low(self, start_low):
         self.start_low = start_low
@@ -107,6 +106,10 @@ class MeasurementModel:
         self.executor.submit(self._cycle_loop)
 
         self.csv_data_logger.reset()
+        self.csv_data_logger.set_file_name(
+            f"log_{self.profile.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        self.csv_data_logger.set_file_directory(self.output_file_path)
+        self.csv_data_logger.set_first_row(self.profile.headers)
         self.csv_data_logger.start()
 
         self._notify_logger(Logger.INFO, "Started measurement.")

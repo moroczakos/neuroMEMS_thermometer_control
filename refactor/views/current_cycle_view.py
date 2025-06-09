@@ -290,9 +290,9 @@ class CurrentCycleView:
             self.live_data_plotter.set_average_count(get_widget_value(self.average_count))
 
     def _set_widget_states(self, enabled: bool):
-        state = "normal" if enabled else "disabled"
+        state = States.NORMAL if enabled else States.DISABLED
         self.start_button.config(state = state)
-        self.stop_button.config(state = "normal" if not enabled else "disabled")
+        self.stop_button.config(state = States.NORMAL if not enabled else States.DISABLED)
 
         widgets = [
             self.visa_dropdown,
@@ -321,6 +321,10 @@ class CurrentCycleView:
         self.live_data_plotter.reset()
         self.live_data_plotter.start()
         self.running = True
+        self._set_widget_states(enabled = False)
+
+        if self.parent_app:
+            self.parent_app.set_widget_states(False)
 
         self.log(Logger.INFO, "Live display started.")
 
@@ -341,15 +345,15 @@ class CurrentCycleView:
     def update(self, running, timestamp, current, voltage, _):
         if not running:
             self.show_measurement_stopped()
+        else:
+            self.root.after(0, lambda: self.current_y1.set(round(current, 4)))
+            self.root.after(0, lambda: self.voltage_y2.set(round(voltage, 2)) if voltage is not None else float('nan'))
 
-        self.root.after(0, lambda: self.current_y1.set(round(current, 4)))
-        self.root.after(0, lambda: self.voltage_y2.set(round(voltage, 2)) if voltage is not None else float('nan'))
-
-        self.live_data_plotter.enqueue(
-            timestamp,
-            current,
-            voltage if voltage is not None else float('nan')
-        )
+            self.live_data_plotter.enqueue(
+                timestamp,
+                current,
+                voltage if voltage is not None else float('nan')
+            )
 
     def log(self, message_type, message):
         if message_type == Logger.INFO:
