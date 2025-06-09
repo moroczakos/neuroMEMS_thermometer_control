@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from refactor.thermometer_main import ThermometerMain
-from refactor.current_cycle_main import CurrentCycleMain
+from apps.thermometer_main import ThermometerMain
+from apps.current_cycle_main import CurrentCycleMain
 from utils.constants import EntryConfig, States
 
 

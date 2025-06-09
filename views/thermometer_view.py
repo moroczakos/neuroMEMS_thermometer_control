@@ -65,6 +65,9 @@ class ThermometerView:
         self._load_visa_resources()
         self._update_probe_values()
 
+        # Placeholder
+        ttk.Label(self.frame, text = "").grid(row = 4, column = 0, pady = 19)
+
         self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.average_count.get(), self.log)
 
     def get_visa_resource(self):
@@ -174,10 +177,10 @@ class ThermometerView:
                                              only_tcpip = False,
                                              logger = self.logger,
                                              include_mock = True,
-                                             mock_resources = ("MOCK_6221", "MOCK_2611"))
+                                             mock_resources = ("MOCK",))
         self.visa_dropdown['values'] = resources
         self.visa_resource.set(resources[0] if resources else "No VISA resources found")
-        self.log(Logger.INFO, f"Loaded VISA resources: {resources}")
+        self.logger.info(f"Loaded VISA resources: {resources}")
 
     def _save_entry_value(self, name, value):
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
