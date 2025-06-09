@@ -12,6 +12,8 @@ from utils.constants import Keys, Logger
 
 class CurrentCycleModel:
     def __init__(self, instrument_manager, setting_manager, profile, output_file_path):
+        self.name = "current_cycle_model"
+
         # Settings
         self.setting_manager = setting_manager
         self.output_file_path = output_file_path
@@ -50,9 +52,14 @@ class CurrentCycleModel:
     def attach(self, observer):
         self.observers.append(observer)
 
-    def _notify_observers(self):
+    def _notify_observers_about_update(self):
         for observer in self.observers:
             observer.update(self.running, self.timestamp, self.current, self.voltage, self.resistance)
+
+    def _notify_observers_about_running(self):
+        for observer in self.observers:
+            if hasattr(observer, 'is_running'):
+                observer.is_running(self.name, self.running)
 
     def _notify_logger(self, message_type, message):
         for observer in self.observers:
@@ -100,6 +107,7 @@ class CurrentCycleModel:
 
     def start_data_collection(self):
         self.running = True
+        self._notify_observers_about_running()
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
@@ -117,7 +125,8 @@ class CurrentCycleModel:
     def stop_data_collection(self):
         if self.running:
             self.running = False
-            self._notify_observers()
+            self._notify_observers_about_update()
+            self._notify_observers_about_running()
 
             if self.executor:
                 self.executor.shutdown(wait = False)
@@ -164,7 +173,7 @@ class CurrentCycleModel:
         while self.running:
             try:
                 self.timestamp, self.current, self.voltage, resistance = self._perform_measurement()
-                self._notify_observers()
+                self._notify_observers_about_update()
 
                 self.csv_data_logger.enqueue(
                     (self.timestamp,
@@ -175,6 +184,7 @@ class CurrentCycleModel:
                 time.sleep(self.interval)
             except Exception as e:
                 self.running = False
+                self._notify_observers_about_running()
                 self._notify_logger(Logger.ERROR, f"Measurement error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error(self.instrument_alias)

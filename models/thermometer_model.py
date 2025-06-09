@@ -12,6 +12,8 @@ from utils.constants import Keys, Logger
 
 class ThermometerModel:
     def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path):
+        self.name = "thermometer_model"
+
         # Settings
         self.setting_manager = setting_manager
         self.input_file_path = input_file_path
@@ -53,9 +55,14 @@ class ThermometerModel:
     def attach(self, observer):
         self.observers.append(observer)
 
-    def _notify_observers(self):
+    def _notify_observers_about_update(self):
         for observer in self.observers:
             observer.update(self.running, self.preview_running, self.timestamp, self.resistance, self.temperature)
+
+    def _notify_observers_about_running(self):
+        for observer in self.observers:
+            if hasattr(observer, 'is_running'):
+                observer.is_running(self.name, self.running or self.preview_running)
 
     def _notify_logger(self, message_type, message):
         for observer in self.observers:
@@ -71,6 +78,7 @@ class ThermometerModel:
 
     def start_data_preview(self):
         self.preview_running = True
+        self._notify_observers_about_running()
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
@@ -81,7 +89,8 @@ class ThermometerModel:
     def stop_data_preview(self):
         if self.preview_running:
             self.preview_running = False
-            self._notify_observers()
+            self._notify_observers_about_update()
+            self._notify_observers_about_running()
 
             if self.executor:
                 self.executor.shutdown(wait = False)
@@ -93,6 +102,7 @@ class ThermometerModel:
 
     def start_data_collection(self):
         self.running = True
+        self._notify_observers_about_running()
         self.start_time = time.time()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
@@ -119,7 +129,8 @@ class ThermometerModel:
     def stop_data_collection(self):
         if self.running:
             self.running = False
-            self._notify_observers()
+            self._notify_observers_about_update()
+            self._notify_observers_about_running()
 
             if self.executor:
                 self.executor.shutdown(wait = False)
@@ -135,11 +146,12 @@ class ThermometerModel:
         while self.preview_running:
             try:
                 self.timestamp, self.resistance, self.temperature = self._perform_measurement()
-                self._notify_observers()
+                self._notify_observers_about_update()
 
                 time.sleep(self.interval)
             except Exception as e:
                 self.running = False
+                self._notify_observers_about_running()
                 self._notify_logger(Logger.ERROR, f"Preview error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error(self.instrument_alias)
@@ -151,7 +163,7 @@ class ThermometerModel:
         while self.running:
             try:
                 self.timestamp, self.resistance, self.temperature = self._perform_measurement()
-                self._notify_observers()
+                self._notify_observers_about_update()
 
                 self.csv_data_logger.enqueue(
                     (self.timestamp,
@@ -165,6 +177,7 @@ class ThermometerModel:
                 time.sleep(self.interval)
             except Exception as e:
                 self.running = False
+                self._notify_observers_about_running()
                 self._notify_logger(Logger.ERROR, f"Measurement error: {e}\n {traceback.format_exc()}")
 
                 error = self.instrument_manager.get_error(self.instrument_alias)

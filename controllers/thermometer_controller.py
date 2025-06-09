@@ -10,6 +10,9 @@ class ThermometerController:
         self.model.load_settings()
         self.model.attach(self.view)
 
+    def attach_to_model(self, observer):
+        self.model.attach(observer)
+
     def start_measurement(self):
         # Apply loading window
         visa_resource = self.view.get_visa_resource()
@@ -45,3 +48,9 @@ class ThermometerController:
         self.model.stop_data_preview()
         self.view.enable_controls()
         self.view.stop_preview()
+
+    def enable_controls(self):
+        self.view.enable_controls()
+
+    def disable_controls(self):
+        self.view.disable_controls()

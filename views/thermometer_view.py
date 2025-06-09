@@ -22,10 +22,9 @@ from utils.constants import Keys, EntryConfig, States, Logger
 
 
 class ThermometerView:
-    def __init__(self, root, probe_path, setting_manager, logger, profile, parent_app=None):
+    def __init__(self, root, probe_path, setting_manager, logger, profile):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
-        self.parent_app = parent_app
         self.controller = None
         self.live_data_plotter = None
 
@@ -231,6 +230,12 @@ class ThermometerView:
             self.preview_start_button.config(state = States.DISABLED)
             self.preview_stop_button.config(state = States.NORMAL)
 
+        if not preview and not enabled:
+            self.start_button.config(state = States.DISABLED)
+            self.stop_button.config(state = States.DISABLED)
+            self.preview_start_button.config(state = States.DISABLED)
+            self.preview_stop_button.config(state = States.DISABLED)
+
         widgets = [
             self.visa_dropdown,
             self.refresh_button,
@@ -249,14 +254,14 @@ class ThermometerView:
     def enable_controls(self):
         self._set_widget_states(enabled = True, preview = True)
 
+    def disable_controls(self):
+        self._set_widget_states(enabled = False, preview = False)
+
     def start_live_display(self):
         self.live_data_plotter.reset()
         self.live_data_plotter.start()
         self.running = True
         self._set_widget_states(enabled = False, preview = True)
-
-        if self.parent_app:
-            self.parent_app.set_widget_states(False)
 
         self.log(Logger.INFO, "Live display started.")
 
@@ -271,15 +276,9 @@ class ThermometerView:
 
             self.log(Logger.INFO, "Live display stopped.")
 
-            if self.parent_app:
-                self.parent_app.stop_apps()
-
     def start_preview(self):
         self.preview_running = True
         self._set_widget_states(enabled = True, preview = False)
-
-        if self.parent_app:
-            self.parent_app.set_widget_states(False)
 
     def stop_preview(self):
         self.preview_running = False

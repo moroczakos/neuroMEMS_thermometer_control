@@ -8,6 +8,8 @@ from utils.constants import EntryConfig, States
 class TemperatureMeasurementStationApp:
     def __init__(self, root):
         self.root = root
+        self.is_current_cycle_app_running = False
+        self.is_thermometer_app_running = False
 
         # Create container frames
         self.left_frame = ttk.Frame(root, width = 400)
@@ -19,11 +21,11 @@ class TemperatureMeasurementStationApp:
         # Add labels at the top of each frame
         ttk.Label(self.left_frame, text = "Current source app", justify = EntryConfig.JUSTIFY,
                   font = ("Arial", 24)).pack()
-        self.cycle_app = CurrentCycleMain(self.left_frame, self)
+        self.cycle_app = CurrentCycleMain(self.left_frame)
 
         ttk.Label(self.right_frame, text = "Thermometer app", justify = EntryConfig.JUSTIFY,
                   font = ("Arial", 24)).pack()
-        self.thermometer_app = ThermometerMain(self.right_frame, self)
+        self.thermometer_app = ThermometerMain(self.right_frame)
 
         # Create a frame for the buttons
         self.button_frame = ttk.Frame(root, relief = "solid", borderwidth = 2)
@@ -39,24 +41,54 @@ class TemperatureMeasurementStationApp:
         self.stop_button.pack(side = 'left', padx = 10)
         self.stop_button.config(state = "disabled")
 
+        self.cycle_app.controller.attach_to_model(self)
+        self.thermometer_app.controller.attach_to_model(self)
+
     def start_apps(self):
         """Starts both applications."""
         self.cycle_app.controller.start_measurement()  # Call the start method of CurrentCycleApp
         self.thermometer_app.controller.start_measurement()  # Call the start method of ThermometerApp
-        self.start_button.config(state = States.DISABLED)
-        self.stop_button.config(state = States.NORMAL)
+
+        self.cycle_app.controller.disable_controls()
+        self.thermometer_app.controller.disable_controls()
+
+        self._set_widget_states(False)
 
     def stop_apps(self):
         """Stops both applications."""
         self.cycle_app.controller.stop_measurement()  # Call the stop method of CurrentCycleApp
         self.thermometer_app.controller.stop_measurement()  # Call the stop method of ThermometerApp
-        self.start_button.config(state = States.NORMAL)
-        self.stop_button.config(state = States.DISABLED)
 
-    def set_widget_states(self, enabled: bool):
+        self.cycle_app.controller.enable_controls()
+        self.thermometer_app.controller.enable_controls()
+
+        self._set_widget_states(True)
+
+    def _set_widget_states(self, enabled: bool):
         state = States.NORMAL if enabled else States.DISABLED
         self.start_button.config(state = state)
         self.stop_button.config(state = States.NORMAL if not enabled else States.DISABLED)
+
+    def _disable_controls(self):
+        self._set_widget_states(False)
+        self.stop_button.config(state = States.DISABLED)
+
+    def is_running(self, name, running):
+        if name == "current_cycle_model":
+            self.is_current_cycle_app_running = running
+        elif name == "thermometer_model":
+            self.is_thermometer_app_running = running
+
+        if self.is_current_cycle_app_running or self.is_thermometer_app_running:
+            self._disable_controls()
+        else:
+            self._set_widget_states(True)
+
+    def update(self, *args):
+        pass
+
+    def log(self, *args):
+        pass
 
 
 if __name__ == "__main__":

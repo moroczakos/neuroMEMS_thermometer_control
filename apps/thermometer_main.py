@@ -14,7 +14,7 @@ from utils.measurement_profile import MeasurementProfile
 
 
 class ThermometerMain:
-    def __init__(self, root, main_app=None):
+    def __init__(self, root):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
@@ -33,7 +33,7 @@ class ThermometerMain:
             self.output_file_path
         )
 
-        view = ThermometerView(self.root, self.probe_path, self.setting_manager, self.logger, profile, main_app)
+        view = ThermometerView(self.root, self.probe_path, self.setting_manager, self.logger, profile)
         self.controller = ThermometerController(model, view)
 
     def _load_settings(self):

@@ -14,7 +14,7 @@ from utils.measurement_profile import MeasurementProfile
 
 
 class CurrentCycleMain:
-    def __init__(self, root, main_app=None):
+    def __init__(self, root):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
@@ -32,7 +32,7 @@ class CurrentCycleMain:
             self.output_file_path
         )
 
-        view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile, main_app)
+        view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile)
         self.controller = CurrentCycleController(model, view)
 
     def _load_settings(self):

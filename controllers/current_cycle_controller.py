@@ -8,6 +8,9 @@ class CurrentCycleController:
         self.model.load_settings()
         self.model.attach(self.view)
 
+    def attach_to_model(self, observer):
+        self.model.attach(observer)
+
     def start_measurement(self):
         # Apply loading window
         visa_resource = self.view.get_visa_resource()
@@ -15,7 +18,7 @@ class CurrentCycleController:
             return
 
         self.model.configure_device()
-        self.view.disable_controls()
+        self.view.set_started_current_cycle_controls()
         self.model.load_settings()
         self.model.set_start_low(self.view.get_start_low())
         self.model.start_data_collection()
@@ -29,3 +32,9 @@ class CurrentCycleController:
     def update_other_setting(self, key):
         self.model.update_other_setting(key)
         self.view.update_other_setting_display(self.model.other_setting_value)
+
+    def enable_controls(self):
+        self.view.enable_controls()
+
+    def disable_controls(self):
+        self.view.disable_controls()

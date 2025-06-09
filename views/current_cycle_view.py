@@ -22,10 +22,9 @@ from utils.constants import Keys, EntryConfig, States, Labels, Logger
 
 
 class CurrentCycleView:
-    def __init__(self, root, setting_manager, logger, profile, parent_app=None):
+    def __init__(self, root, setting_manager, logger, profile):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
-        self.parent_app = parent_app
         self.controller = None
         self.live_data_plotter = None
 
@@ -311,20 +310,21 @@ class CurrentCycleView:
         for widget in widgets:
             widget.config(state = state)
 
-    def disable_controls(self):
+    def set_started_current_cycle_controls(self):
         self._set_widget_states(enabled = False)
 
     def enable_controls(self):
         self._set_widget_states(enabled = True)
+
+    def disable_controls(self):
+        self._set_widget_states(enabled = False)
+        self.stop_button.config(state = States.DISABLED)
 
     def start_live_display(self):
         self.live_data_plotter.reset()
         self.live_data_plotter.start()
         self.running = True
         self._set_widget_states(enabled = False)
-
-        if self.parent_app:
-            self.parent_app.set_widget_states(False)
 
         self.log(Logger.INFO, "Live display started.")
 
@@ -338,9 +338,6 @@ class CurrentCycleView:
             self._set_widget_states(enabled = True)
 
             self.log(Logger.INFO, "Live display stopped.")
-
-            if self.parent_app:
-                self.parent_app.stop_apps()
 
     def update(self, running, timestamp, current, voltage, _):
         if not running:
