@@ -4,6 +4,7 @@ import time
 import traceback
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from utils.csv_data_logger import CSVDataLogger
@@ -43,6 +44,7 @@ class CurrentCycleModel:
         self.executor = None
 
         self.running = False
+        self.stop_event = Event()
         self.observers = []
         self.csv_data_logger = CSVDataLogger(self._notify_logger)
 
@@ -127,6 +129,7 @@ class CurrentCycleModel:
             self.running = False
             self._notify_observers_about_update()
             self._notify_observers_about_running()
+            self.stop_event.set()
 
             if self.executor:
                 self.executor.shutdown(wait = False)
@@ -150,19 +153,20 @@ class CurrentCycleModel:
                 self.duration_high, self.duration_low)
 
             for cycle in range(self.cycles):
-                if not self.running:
+                if not self.running or self.stop_event.is_set():
                     break
                 self._notify_logger(Logger.INFO,
                                     f"Cycle {cycle + 1}/{self.cycles}: Setting current to {first_current}A")
                 source_handler.set_current(first_current)
-                time.sleep(first_duration)
-
-                if not self.running:
+                if self.stop_event.wait(first_duration):
                     break
+
                 self._notify_logger(Logger.INFO,
                                     f"Cycle {cycle + 1}/{self.cycles}: Setting current to {second_current}A")
                 source_handler.set_current(second_current)
-                time.sleep(second_duration)
+                if self.stop_event.wait(second_duration):
+                    break
+
         except Exception as e:
             self._notify_logger(Logger.ERROR, f"Cycle Error {e}\n {traceback.format_exc()}")
 

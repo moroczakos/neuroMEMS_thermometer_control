@@ -1,3 +1,4 @@
+import sys
 import tkinter as tk
 from tkinter import ttk
 from apps.thermometer_main import ThermometerMain
@@ -10,6 +11,7 @@ class TemperatureMeasurementStationApp:
         self.root = root
         self.is_current_cycle_app_running = False
         self.is_thermometer_app_running = False
+        self.is_combined = False
 
         # Create container frames
         self.left_frame = ttk.Frame(root, width = 400)
@@ -53,6 +55,7 @@ class TemperatureMeasurementStationApp:
         self.thermometer_app.controller.disable_controls()
 
         self._set_widget_states(False)
+        self.is_combined = True
 
     def stop_apps(self):
         """Stops both applications."""
@@ -63,6 +66,7 @@ class TemperatureMeasurementStationApp:
         self.thermometer_app.controller.enable_controls()
 
         self._set_widget_states(True)
+        self.is_combined = False
 
     def _set_widget_states(self, enabled: bool):
         state = States.NORMAL if enabled else States.DISABLED
@@ -79,7 +83,9 @@ class TemperatureMeasurementStationApp:
         elif name == "thermometer_model":
             self.is_thermometer_app_running = running
 
-        if self.is_current_cycle_app_running or self.is_thermometer_app_running:
+        if not self.is_current_cycle_app_running and self.is_combined:
+            self.stop_apps()
+        elif self.is_current_cycle_app_running or self.is_thermometer_app_running:
             self._disable_controls()
         else:
             self._set_widget_states(True)
@@ -90,10 +96,23 @@ class TemperatureMeasurementStationApp:
     def log(self, *args):
         pass
 
+    def close_app(self):
+        self.thermometer_app.close_app()
+        self.cycle_app.close_app()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.geometry("1600x900")
     root.title("Temperature measurement station app")
     app = TemperatureMeasurementStationApp(root)
+
+
+    def on_close():
+        app.close_app()
+        root.destroy()
+        sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()

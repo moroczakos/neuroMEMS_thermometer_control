@@ -1,3 +1,4 @@
+import sys
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Frame
@@ -28,10 +29,24 @@ class CombinedApp:
         self.app2 = TemperaturePlotterApp(self.tab2)
         self.app3 = TemperatureByRecalibratedProbeDataApp(self.tab3)
 
+    def close_app(self):
+        self.app1.close_app()
+        self.app2.close_app()
+        self.app3.close_app()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("Combined Apps in Tabs")
     root.geometry("1600x900")
     app = CombinedApp(root)
+
+
+    def on_close():
+        app.close_app()
+        root.destroy()
+        sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()

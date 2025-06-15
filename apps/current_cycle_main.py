@@ -1,5 +1,6 @@
 # ─── Standard Library ────────────────────────────────────────────────────────
 import os
+import sys
 import tkinter as tk
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ class CurrentCycleMain:
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
-        self.project_root = find_project_root()
+        self.project_root = ".."  # find_project_root()
         self.setting_manager = self._load_settings()
         self.logger = self._setup_logger()
 
@@ -53,7 +54,8 @@ class CurrentCycleMain:
 
     def _setup_logger(self):
         log_path = os.path.join(self.log_file_path, "current_source_app.log")
-        return LoggerManager(log_file = log_path).get_logger()
+        self.logger_manager = LoggerManager(log_file = log_path)
+        return self.logger_manager.get_logger()
 
     def _create_measurement_profile(self):
         return MeasurementProfile(
@@ -65,9 +67,21 @@ class CurrentCycleMain:
             post_process_func = lambda a, v: v / a if v is not None else float('nan')
         )
 
+    def close_app(self):
+        self.logger_manager.close()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("Current Source")
     app = CurrentCycleMain(root)
+
+
+    def on_close():
+        app.close_app()
+        root.destroy()
+        sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()

@@ -1,4 +1,6 @@
 import os
+import sys
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,6 +8,7 @@ from tkinter import Tk, filedialog, Button, Label, Frame, Spinbox, IntVar, Strin
 from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from utils.logger_manager import LoggerManager
+from utils.settings_utils import SettingManager
 from utils.ui_utils.logger_panel import LoggingPanel
 
 
@@ -30,10 +33,35 @@ class TemperaturePlotterApp:
         self.show_title = IntVar(value = 1)
         self.show_legend = IntVar(value = 1)
 
-        self.logger = LoggerManager().get_logger()
+        # Logger
+        self.project_root = ".."  # find_project_root()
+        self.setting_manager = self._load_settings()
+        self.logger = self._setup_logger()
 
         self.setup_ui()
         self.setup_logger_panel()
+
+    def _load_settings(self):
+        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
+        setting_manager = SettingManager(settings_path)
+
+        self.input_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("input_files")
+        )
+        self.output_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("output_files")
+        )
+        self.log_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("log_files")
+        )
+        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
+
+        return setting_manager
+
+    def _setup_logger(self):
+        log_path = os.path.join(self.log_file_path, "temperature_plotter_app.log")
+        self.logger_manager = LoggerManager(log_file = log_path)
+        return self.logger_manager.get_logger()
 
     def setup_logger_panel(self):
         """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
@@ -205,11 +233,20 @@ class TemperaturePlotterApp:
         for i in range(1, len(transitions)):
             if transitions[i] - transitions[i - 1] >= min_distance:
                 filtered.append(transitions[i])
-        self.logger.info(f"Found {len(filtered)} transition points.")
+        self.logger.info(f"Found {len(filtered)} transition point(s).")
+
+        if len(filtered) < 2:
+            self.logger.warning(f"No enough transition points.")
+            return None
+
         return filtered
 
     def compute_amplitudes(self, signal, transitions):
         """Compute the amplitude between transition points."""
+        if not transitions:
+            self.logger.warning(f"No enough transition points. Average amplitude is not computed.")
+            return None
+
         amplitudes = []
         start_idx = 0
         for i in range(len(transitions) - 1):
@@ -222,6 +259,10 @@ class TemperaturePlotterApp:
 
     def compute_rise_fall_times(self, time, signal, transitions):
         """Compute rise and fall times between transitions based on 10%-90% amplitude crossing."""
+        if not transitions:
+            self.logger.warning(f"No enough transition points. Rise and fall times are not computed.")
+            return None, None, None
+
         rise_times = []
         rise_time_starts = []
         rise_time_ends = []
@@ -287,10 +328,10 @@ class TemperaturePlotterApp:
 
         # Mark transition, rise and fall points on the plot
         smooth_mean = np.mean(smoothed)
-        if self.show_transitions.get():
+        if self.show_transitions.get() and transitions:
             ax.plot(time[transitions], [smooth_mean] * len(transitions), "k*", label = "Transitions")
 
-        if self.show_rise_fall_times.get():
+        if self.show_rise_fall_times.get() and transitions:
             flat_list = [item for sublist in rise_fall_times for item in sublist]
             indices = np.searchsorted(time, flat_list)
             for i, x in enumerate(time[indices]):
@@ -301,8 +342,13 @@ class TemperaturePlotterApp:
         ax.set_xlabel('Time (s)')
         ax.set_ylabel('Temperature (°C)')
         if self.show_title.get():
-            ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C\n'
-                         f'Average rise and fall time: {avg_rise_time:.2f}s and {avg_fall_time:.2f}s')
+            if transitions:
+                ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = {avg_amp:.2f}°C\n'
+                             f'Average rise and fall time: {avg_rise_time:.2f}s and {avg_fall_time:.2f}s')
+            else:
+                ax.set_title(f'Temperature vs Time with Drift Compensation, ΔT = --°C\n'
+                             f'Average rise and fall time: --s and --s')
+
         ax.grid(True)
 
         if self.show_legend.get():
@@ -324,10 +370,22 @@ class TemperaturePlotterApp:
 
         canvas.get_tk_widget().pack()
 
+    def close_app(self):
+        self.logger_manager.close()
+
 
 if __name__ == "__main__":
     # Create and run the Tkinter application
     root = Tk()
     root.title("CSV File Plotter")
     app = TemperaturePlotterApp(root)
+
+
+    def on_close():
+        app.close_app()
+        root.destroy()
+        sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()

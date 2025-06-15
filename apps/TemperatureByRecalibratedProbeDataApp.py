@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import Tk, ttk, filedialog
 from utils.logger_manager import LoggerManager
@@ -15,15 +16,12 @@ class TemperatureByRecalibratedProbeDataApp:
 
         # File paths and settings
         self.file_path = None  # To store the file path selected by user
-        self.input_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'input_files'))
-        self.output_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'output_files'))
-        self.setting_manager = SettingManager(os.path.join(self.input_file_path, 'settings.json'))
-
-        # Logger
-        self.logger = LoggerManager(log_file = "../logs/thermometer_calibration_app.log").get_logger()
+        self.project_root = ".."  # find_project_root()
+        self.setting_manager = self._load_settings()
+        self.logger = self._setup_logger()
 
         # Probes
-        self.probes = load_probe_data(os.path.join(self.input_file_path, 'thermoprobes.csv'))
+        self.probes = load_probe_data(self.probe_path)
         self.selected_probe = tk.StringVar(value = self.setting_manager.load_setting("probe"))
         self.R0 = tk.DoubleVar()
         self.TCR = tk.DoubleVar()
@@ -31,6 +29,28 @@ class TemperatureByRecalibratedProbeDataApp:
 
         self.setup_ui()
         self.setup_logger_panel()
+
+    def _load_settings(self):
+        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
+        setting_manager = SettingManager(settings_path)
+
+        self.input_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("input_files")
+        )
+        self.output_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("output_files")
+        )
+        self.log_file_path = os.path.join(
+            self.project_root, setting_manager.load_setting("log_files")
+        )
+        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
+
+        return setting_manager
+
+    def _setup_logger(self):
+        log_path = os.path.join(self.log_file_path, "thermometer_calibration_app.log")
+        self.logger_manager = LoggerManager(log_file = log_path)
+        return self.logger_manager.get_logger()
 
     def setup_logger_panel(self):
         """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
@@ -143,10 +163,22 @@ class TemperatureByRecalibratedProbeDataApp:
         new_filename = f"{new_base}{ext}"
         return os.path.join(directory, new_filename)
 
+    def close_app(self):
+        self.logger_manager.close()
+
 
 if __name__ == "__main__":
     # Create and run the Tkinter application
     root = Tk()
     root.title("Temperature by recalibrated probe data app")
     app = TemperatureByRecalibratedProbeDataApp(root)
+
+
+    def on_close():
+        app.close_app()
+        root.destroy()
+        sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()

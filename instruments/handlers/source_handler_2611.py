@@ -33,8 +33,8 @@ class SourceHandler2611(SourceHandler):
         # resistance = float(instr.query("print(smua.measure.r())"))
 
         iv = instr.query("print(smua.measure.iv())").strip()
-        current, voltage = map(float, iv.split(','))
-        resistance = voltage / current if current != 0 else float('inf')
+        current, voltage = map(float, iv.split('\t'))
+        resistance = float(voltage) / float(current) if float(current) != 0 else float('inf')
 
         return {"current": current, "voltage": voltage, "resistance": resistance}
 

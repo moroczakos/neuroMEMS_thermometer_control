@@ -1,5 +1,6 @@
 import csv
 import os
+import time
 
 
 class CsvLogger:
@@ -15,6 +16,7 @@ class CsvLogger:
         self.filename = file_name
 
     def set_file_directory(self, directory):
+        os.makedirs(directory, exist_ok = True)  # Create the directory if it doesn't exist
         self.file_directory = directory
 
     def set_first_row(self, first_row):
@@ -29,6 +31,7 @@ class CsvLogger:
 
     def close(self):
         if self.csvfile:
+            time.sleep(0.5)
             self.csvfile.close()
 
     def get_full_filename(self):

@@ -18,10 +18,10 @@ class DMMHandler(InstrumentHandler):
         instr.write("*RST")
         instr.write("CONF:FRES 1000")
         instr.write("SENS:FRES:NPLC 1")
+        instr.write("INIT")
 
     def measure(self):
         instr = self.instrument
-        instr.write("INIT")
 
         resistance = float(instr.query("FETCH?").strip())
 

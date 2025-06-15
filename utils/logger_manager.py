@@ -1,3 +1,4 @@
+import os
 import logging
 from functools import wraps
 from tkinter import messagebox
@@ -10,12 +11,19 @@ class LoggerManager:
 
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        file_handler = logging.FileHandler(log_file, mode = 'a')
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        log_dir = os.path.abspath(os.path.dirname(log_file))
+        os.makedirs(log_dir, exist_ok = True)  # Create the directory if it doesn't exist
+
+        self.file_handler = logging.FileHandler(log_file, mode = 'a')
+        self.file_handler.setFormatter(formatter)
+        self.logger.addHandler(self.file_handler)
 
     def get_logger(self):
         return self.logger
+
+    def close(self):
+        self.logger.removeHandler(self.file_handler)
+        self.file_handler.close()
 
 
 def safe_execute(func):

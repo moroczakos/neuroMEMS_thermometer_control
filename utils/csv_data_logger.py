@@ -54,6 +54,8 @@ class CSVDataLogger:
 
         self.logger(Logger.INFO, f"Data saved to {self.csv_logger.get_full_filename()}")
 
+        self.csv_logger.close()
+
     def enqueue(self, data):
         self.data_queue.put(data)
 
