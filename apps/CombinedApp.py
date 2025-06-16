@@ -39,6 +39,10 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("Combined Apps in Tabs")
     root.geometry("1600x900")
+
+    icon_photo = tk.PhotoImage(file = "../icon.png")
+    root.iconphoto(True, icon_photo)
+
     app = CombinedApp(root)
 
 

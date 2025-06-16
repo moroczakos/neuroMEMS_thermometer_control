@@ -111,13 +111,16 @@ class CurrentCycleModel:
         self.running = True
         self._notify_observers_about_running()
         self.start_time = time.time()
+        self.stop_event = Event()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._cycle_loop)
 
+        start_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+
         self.csv_data_logger.reset()
         self.csv_data_logger.set_file_name(
-            f"log_{self.profile.name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            f"log_{self.profile.name.replace('/', '_')}_{start_time}.csv")
         self.csv_data_logger.set_file_directory(self.output_file_path)
         self.csv_data_logger.set_first_row(self.profile.headers)
         self.csv_data_logger.start()
