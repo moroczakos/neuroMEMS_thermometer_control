@@ -3,7 +3,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
 def create_dual_axis_plot(root, title, x_label, y1_label, y2_label, color1='black', color2='red'):
-    fig, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots(figsize = (6, 3))
     ax2 = ax1.twinx()
 
     line1, = ax1.plot([], [], label = y1_label, color = color1)

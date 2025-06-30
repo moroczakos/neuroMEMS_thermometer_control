@@ -20,7 +20,6 @@ class CurrentCycleController:
         self.model.configure_device()
         self.view.set_started_current_cycle_controls()
         self.model.load_settings()
-        self.model.set_start_low(self.view.get_start_low())
         self.model.start_data_collection()
         self.view.start_live_display()
 

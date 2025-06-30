@@ -1,10 +1,14 @@
 # ─── Standard Library ────────────────────────────────────────────────────────
+import json
+import os
 import queue
 import traceback
 
 # ─── Third-Party Libraries ───────────────────────────────────────────────────
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
+from matplotlib import pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from instruments.instrument_manager import InstrumentManager
@@ -19,6 +23,7 @@ from utils.other_utils import (
 from utils.plot_utils import create_dual_axis_plot
 from utils.ui_utils.logger_panel import LoggingPanel
 from utils.constants import Keys, EntryConfig, States, Labels, Logger
+from utils.ui_utils.tooltip import ToolTip
 
 
 class CurrentCycleView:
@@ -27,11 +32,14 @@ class CurrentCycleView:
         self.root.pack(fill = 'both', expand = True)
         self.controller = None
         self.live_data_plotter = None
+        self.open_editor = None
 
         # Settings
         self.setting_manager = setting_manager
         self.start_low = True  # Square wave current starts with low value
         self.profile = profile
+        self.project_root = ".."  # find_project_root()
+        self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
 
         # Logger
         self.logger = logger
@@ -43,10 +51,6 @@ class CurrentCycleView:
         # Control variables
         self.running = False
         self.visa_resource = tk.StringVar()
-        self.current_high = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.CURRENT_HIGH))
-        self.current_low = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.CURRENT_LOW))
-        self.duration_high = tk.IntVar(value = self.setting_manager.load_setting(Keys.DURATION_HIGH))
-        self.duration_low = tk.IntVar(value = self.setting_manager.load_setting(Keys.DURATION_LOW))
         self.cycles = tk.IntVar(value = self.setting_manager.load_setting(Keys.CYCLES))
         self.other_settings = tk.StringVar()
         self.other_settings_value = tk.DoubleVar()
@@ -60,6 +64,8 @@ class CurrentCycleView:
         self.data_queue = queue.Queue()
         self.current_y1 = tk.DoubleVar()
         self.voltage_y2 = tk.DoubleVar()
+        self.cycle_sequence_waveform_label = tk.StringVar(
+            value = f"Selected cycle waveform: {self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE_FILE)} (click to enlarge)")
 
         self._create_widgets()
         self._setup_plot()
@@ -72,14 +78,14 @@ class CurrentCycleView:
     def get_visa_resource(self):
         return self.visa_resource.get()
 
-    def get_start_low(self):
-        return self.start_low_var.get()
-
     def set_start_button_command(self, command):
         self.start_button.config(command = command)
 
     def set_stop_button_command(self, command):
         self.stop_button.config(command = command)
+
+    def set_cycle_sequence_editor_app_opener(self, opener):
+        self.open_editor = opener
 
     def _setup_logger_panel(self):
         """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
@@ -94,6 +100,7 @@ class CurrentCycleView:
 
         self._create_visa_selector()
         self._create_current_settings_section()
+        self._create_cycle_sequence_plotter()
         self._create_other_settings_section()
         self._create_measurement_settings_section()
         self._create_live_display_section()
@@ -112,70 +119,101 @@ class CurrentCycleView:
             .grid(row = row, column = 0, columnspan = 9)
 
         row += 1
-        self.c_high_entry = self._entry_with_label(row, 0, "High Current (A):", self.current_high,
-                                                   self._save_entry_value, Keys.CURRENT_HIGH)
-        self.c_low_entry = self._entry_with_label(row, 2, "Low Current (A):", self.current_low,
-                                                  self._save_entry_value,
-                                                  Keys.CURRENT_LOW)
+        self.edit_cycle_button = ttk.Button(self.frame, text = "Cycle waveform editor",
+                                            command = self._edit_cycle_setting)
+        self.edit_cycle_button.grid(row = row, column = 0, columnspan = 2)
+        ToolTip(self.edit_cycle_button,
+                "Create, edit or save a waveform. It does not change the currently loaded waveform.")
 
-        ttk.Label(self.frame, text = Labels.STARTS_WITH_LOW).grid(row = row, column = 4)
-        self.start_low_var = tk.BooleanVar(value = self.start_low)
-        self.start_low_cbutton = ttk.Checkbutton(self.frame, variable = self.start_low_var,
-                                                 command = self._update_start_low)
-        self.start_low_cbutton.grid(row = row, column = 5)
-
-        self.cycles_entry = self._entry_with_label(row, 6, "Cycles:", self.cycles, self._save_entry_value,
-                                                   Keys.CYCLES)
+        ttk.Label(self.frame, textvariable = self.cycle_sequence_waveform_label, foreground = 'black',
+                  justify = 'center').grid(row = row, column = 2, columnspan = 4)
 
         row += 1
-        self.d_high_entry = self._entry_with_label(row, 0, "High Duration (s):", self.duration_high,
-                                                   self._save_entry_value, Keys.DURATION_HIGH)
-        self.d_low_entry = self._entry_with_label(row, 2, "Low Duration (s):", self.duration_low,
-                                                  self._save_entry_value,
-                                                  Keys.DURATION_LOW)
+        self.change_cycle_setting_button = ttk.Button(self.frame, text = "Change cycle waveform file",
+                                                      command = self._change_cycle_setting_file)
+        self.change_cycle_setting_button.grid(row = row, column = 0, columnspan = 2)
+        ToolTip(self.change_cycle_setting_button,
+                "Change the waveform of the cycle sequence. The loaded sequence is plotted.")
+
+        row += 2
+        self.cycles_entry = self._entry_with_label(row, 0, "Cycles:", self.cycles, self._save_entry_value,
+                                                   Keys.CYCLES, command = self._plot_waveform)
+
+    def _create_cycle_sequence_plotter(self):
+        row = 3
+
+        self.preview_fig, self.preview_ax = plt.subplots(figsize = (3.5, 0.8))
+        self.preview_canvas = FigureCanvasTkAgg(self.preview_fig, master = self.frame)
+        self.preview_canvas_widget = self.preview_canvas.get_tk_widget()
+        self.preview_canvas_widget.grid(row = row, column = 2, columnspan = 4, rowspan = 3, sticky = "w", padx = 5,
+                                        pady = 5)
+        self.preview_canvas_widget.bind("<Button-1>", self._show_full_plot_popup)
+        ToolTip(self.preview_canvas_widget,
+                "Shows the whole current cycle sequence: the waveform\n"
+                "is repeated according to the number of cycles.\n Click figure to enlarge.")
+
+        self.preview_ax.tick_params(
+            axis = 'both',  # apply to both x and y axes
+            which = 'both',  # apply to both major and minor ticks
+            bottom = False,  # remove bottom ticks
+            top = False,  # remove top ticks
+            left = False,  # remove left ticks
+            right = False,  # remove right ticks
+            labelbottom = False,  # remove x tick labels
+            labelleft = False  # remove y tick labels
+        )
+        self.preview_ax.grid(True)
+        self._plot_waveform()
 
     def _create_other_settings_section(self):
-        ttk.Label(self.frame, text = Labels.OTHER_SETTINGS).grid(row = 3, column = 4)
+        row = 2
+        ttk.Label(self.frame, text = Labels.OTHER_SETTINGS).grid(row = row, column = 6, columnspan = 3)
 
         self.other_settings_dropdown = ttk.Combobox(
             self.frame, textvariable = self.other_settings, width = 16, state = States.READONLY
         )
-        self.other_settings_dropdown.grid(row = 3, column = 5, columnspan = 2)
+
+        row += 1
+        self.other_settings_dropdown.grid(row = row, column = 6, columnspan = 2)
         self.other_settings_dropdown.bind("<<ComboboxSelected>>", self._on_other_setting_selected)
 
         self.other_settings_entry = ttk.Entry(
             self.frame, textvariable = self.other_settings_value, width = EntryConfig.WIDTH,
             justify = EntryConfig.JUSTIFY
         )
-        self.other_settings_entry.grid(row = 3, column = 7)
+        self.other_settings_entry.grid(row = row, column = 8)
 
+        row += 1
         self.save_other_button = ttk.Button(self.frame, text = Labels.SAVE, command = self._save_other_setting)
-        self.save_other_button.grid(row = 3, column = 8, padx = 5)
+        self.save_other_button.grid(row = row, column = 6, columnspan = 3, padx = 5)
 
     def _create_measurement_settings_section(self):
+        row = 6
         ttk.Label(self.frame, text = Labels.CURRENT_MEASUREMENT_SETTINGS, justify = 'center') \
-            .grid(row = 4, column = 0, columnspan = 9)
+            .grid(row = row, column = 0, columnspan = 9)
 
-        self._entry_with_label(5, 0, "Interval (s):", self.interval, self._save_entry_value, Keys.INTERVAL)
-        self._entry_with_label(5, 2, "Average count:", self.average_count, self._save_entry_value, Keys.AVG_COUNT,
+        row += 1
+        self._entry_with_label(row, 0, "Interval (s):", self.interval, self._save_entry_value, Keys.INTERVAL)
+        self._entry_with_label(row, 2, "Average count:", self.average_count, self._save_entry_value, Keys.AVG_COUNT,
                                self._update_average_count)
 
         self.start_button = ttk.Button(self.frame, text = "Start")
-        self.start_button.grid(row = 5, column = 4)
+        self.start_button.grid(row = row, column = 4)
 
         self.stop_button = ttk.Button(self.frame, text = "Stop", state = States.DISABLED)
-        self.stop_button.grid(row = 5, column = 5)
+        self.stop_button.grid(row = row, column = 5)
 
     def _create_live_display_section(self):
-        ttk.Label(self.frame, text = "Live current (A):").grid(row = 6, column = 0, sticky = 'e')
-        ttk.Label(self.frame, textvariable = self.current_y1, foreground = 'blue').grid(row = 6, column = 1,
+        row = 8
+        ttk.Label(self.frame, text = "Live current (A):").grid(row = row, column = 0, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.current_y1, foreground = 'blue').grid(row = row, column = 1,
                                                                                         sticky = 'w')
 
-        ttk.Label(self.frame, text = "Live voltage (V):").grid(row = 6, column = 2, sticky = 'e')
-        ttk.Label(self.frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = 6, column = 3,
+        ttk.Label(self.frame, text = "Live voltage (V):").grid(row = row, column = 2, sticky = 'e')
+        ttk.Label(self.frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = row, column = 3,
                                                                                          sticky = 'w')
 
-    def _entry_with_label(self, row, col, label, variable, trace_callback=None, key=None, command=None):
+    def _entry_with_label(self, row, col, label, variable, trace_callback = None, key = None, command = None):
         ttk.Label(self.frame, text = label).grid(row = row, column = col)
         entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH,
                           justify = EntryConfig.JUSTIFY)
@@ -190,6 +228,62 @@ class CurrentCycleView:
         if trace_callback and key:
             variable.trace_add("write", lambda *args: all_trace_callback(key, variable))
         return entry
+
+    def _generate_waveform(self, sequence, n_cycles):
+        time_points = []
+        current_points = []
+
+        current_time = 0
+        for _ in range(n_cycles):
+            for step in sequence:
+                # Add start of the step
+                time_points.append(current_time)
+                current_points.append(step["current"])
+
+                # Add end of the step
+                current_time += step["duration"]
+                time_points.append(current_time)
+                current_points.append(step["current"])
+        return time_points, current_points
+
+    def _plot_waveform(self):
+        sequence = self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE)
+
+        n_cycles = get_widget_value(self.cycles)
+
+        if n_cycles:
+            time_data, current_data = self._generate_waveform(sequence, n_cycles)
+
+            self.preview_ax.clear()
+            self.preview_ax.step(time_data, current_data, where = "post", linewidth = 2)
+            self.preview_canvas.draw()
+
+    def _show_full_plot_popup(self, event = None):
+        popup = tk.Toplevel(self.root)
+        popup.title("Cycle Waveform")
+        popup.geometry("700x400")
+
+        # Close when focus is lost
+        popup.bind("<FocusOut>", lambda e: popup.destroy())
+
+        fig, ax = plt.subplots(figsize = (6.5, 3))
+        canvas = FigureCanvasTkAgg(fig, master = popup)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.pack(fill = tk.BOTH, expand = True)
+
+        sequence = self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE)
+
+        n_cycles = get_widget_value(self.cycles)
+
+        if n_cycles:
+            time_data, current_data = self._generate_waveform(sequence, n_cycles)
+
+            ax.step(time_data, current_data, where = "post", linewidth = 2)
+            ax.set_title("Current Cycle Waveform")
+            ax.set_xlabel("Time (s)")
+            ax.set_ylabel("Current (A)")
+            ax.grid(True)
+            canvas.draw()
 
     @safe_execute
     def _load_visa_resources(self):
@@ -229,7 +323,7 @@ class CurrentCycleView:
             self.log(Logger.WARNING, f"Failed to load device settings: {e}\n{traceback.format_exc()}")
             self.other_settings_dropdown['values'] = []
 
-    def _on_other_setting_selected(self, event=None):
+    def _on_other_setting_selected(self, event = None):
         try:
             key = self.other_settings.get()
             settings_dict = self.setting_manager.load_setting("device_settings")
@@ -263,6 +357,39 @@ class CurrentCycleView:
         except Exception as e:
             self.log(Logger.ERROR, f"Failed to save other setting: {e}\n{traceback.format_exc()}")
 
+    def _change_cycle_setting_file(self):
+        file_path = filedialog.askopenfilename(
+            title = "Import Cycle Sequence from JSON",
+            filetypes = [("JSON files", "*.json")],
+            initialdir = self.input_file_path
+        )
+        if not file_path:
+            self.logger.info("Import canceled by user.")
+            return
+
+        try:
+            with open(file_path, "r") as f:
+                sequence = json.load(f)
+
+            if not isinstance(sequence, list):
+                raise ValueError("JSON root should be a list.")
+
+            file_name = os.path.basename(file_path)
+            self.setting_manager.save_setting(Keys.CYCLE_SEQUENCE_FILE, file_name)
+            self.setting_manager.save_setting(Keys.CYCLE_SEQUENCE, sequence)
+            self.logger.info(f"Saved cycle sequence settings from {file_path}")
+
+            self.root.after(0, lambda: self.cycle_sequence_waveform_label.set(
+                f"Selected cycle waveform: {file_name} (click to enlarge)"))
+            self._plot_waveform()
+
+        except Exception as e:
+            self.logger.error(f"Saving cycle sequence settings failed: {e}\n{traceback.format_exc()}")
+            messagebox.showerror("Saving Error", f"Saving cycle sequence settings failed: {e}")
+
+    def _edit_cycle_setting(self):
+        self.open_editor()
+
     def _save_entry_value(self, name, value):
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
@@ -278,12 +405,6 @@ class CurrentCycleView:
         return connect_with_popup(self.root, self.visa_resource.get(), self.logger, connect_func)
 
     @safe_execute
-    def _update_start_low(self):
-        # Update self.start_low based on the checkbox state
-        self.start_low = self.start_low_var.get()
-        self.log(Logger.INFO, f"The start with low current state changed to {self.start_low}")
-
-    @safe_execute
     def _update_average_count(self):
         if self.live_data_plotter and self.average_count:
             self.live_data_plotter.set_average_count(get_widget_value(self.average_count))
@@ -296,11 +417,7 @@ class CurrentCycleView:
         widgets = [
             self.visa_dropdown,
             self.refresh_button,
-            self.c_high_entry,
-            self.c_low_entry,
-            self.start_low_cbutton,
-            self.d_high_entry,
-            self.d_low_entry,
+            self.change_cycle_setting_button,
             self.cycles_entry,
             self.other_settings_dropdown,
             self.other_settings_entry,

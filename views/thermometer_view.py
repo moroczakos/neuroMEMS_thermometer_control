@@ -65,7 +65,7 @@ class ThermometerView:
         self._update_probe_values()
 
         # Placeholder
-        ttk.Label(self.frame, text = "").grid(row = 4, column = 0, pady = 19)
+        ttk.Label(self.frame, text = "").grid(row = 4, column = 0, pady = 53)
 
         self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.average_count.get(), self.log)
 

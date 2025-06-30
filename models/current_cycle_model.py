@@ -18,14 +18,10 @@ class CurrentCycleModel:
         # Settings
         self.setting_manager = setting_manager
         self.output_file_path = output_file_path
-        self.start_low = True  # Square wave current starts with low value
-        self.current_high = None
-        self.current_low = None
-        self.duration_high = None
-        self.duration_low = None
         self.cycles = None
         self.interval = None
         self.average_count = None
+        self.cycle_sequence = None
 
         # Define measurement profile
         self.profile = profile
@@ -48,9 +44,6 @@ class CurrentCycleModel:
         self.observers = []
         self.csv_data_logger = CSVDataLogger(self._notify_logger)
 
-    def set_start_low(self, start_low):
-        self.start_low = start_low
-
     def attach(self, observer):
         self.observers.append(observer)
 
@@ -68,13 +61,10 @@ class CurrentCycleModel:
             observer.log(message_type, message)
 
     def load_settings(self):
-        self.current_high = self.setting_manager.load_setting(Keys.CURRENT_HIGH)
-        self.current_low = self.setting_manager.load_setting(Keys.CURRENT_LOW)
-        self.duration_high = self.setting_manager.load_setting(Keys.DURATION_HIGH)
-        self.duration_low = self.setting_manager.load_setting(Keys.DURATION_LOW)
         self.cycles = self.setting_manager.load_setting(Keys.CYCLES)
         self.interval = self.setting_manager.load_setting(Keys.INTERVAL)
         self.average_count = self.setting_manager.load_setting(Keys.AVG_COUNT)
+        self.cycle_sequence = self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE)
 
     def connect_instrument(self, visa_address):
         if "6221" in visa_address:
@@ -114,7 +104,8 @@ class CurrentCycleModel:
         self.stop_event = Event()
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
-        self.executor.submit(self._cycle_loop)
+        self.executor.submit(self._cycle_sequence_loop)
+        self.executor.submit(self._measure_loop)
 
         start_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 
@@ -143,35 +134,39 @@ class CurrentCycleModel:
             self._notify_logger(Logger.INFO, "Measurement stopped.")
             self.csv_data_logger.stop()
 
-    def _cycle_loop(self):
-        self.executor.submit(self._measure_loop)
+    def _cycle_sequence_loop(self):
         source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+        start_time = time.time()
 
         try:
-            first_current, second_current = (
-                self.current_low, self.current_high) if self.start_low else (
-                self.current_high, self.current_low)
-            first_duration, second_duration = (
-                self.duration_low, self.duration_high) if self.start_low else (
-                self.duration_high, self.duration_low)
-
-            for cycle in range(self.cycles):
-                if not self.running or self.stop_event.is_set():
-                    break
-                self._notify_logger(Logger.INFO,
-                                    f"Cycle {cycle + 1}/{self.cycles}: Setting current to {first_current}A")
-                source_handler.set_current(first_current)
-                if self.stop_event.wait(first_duration):
+            step_count = len(self.cycle_sequence)
+            for cycle_index in range(self.cycles):
+                if self.stop_event.is_set():
                     break
 
-                self._notify_logger(Logger.INFO,
-                                    f"Cycle {cycle + 1}/{self.cycles}: Setting current to {second_current}A")
-                source_handler.set_current(second_current)
-                if self.stop_event.wait(second_duration):
-                    break
+                self._notify_logger(Logger.INFO, f"Starting cycle {cycle_index + 1}/{self.cycles}")
+
+                for step_index, step in enumerate(self.cycle_sequence):
+                    if self.stop_event.is_set():
+                        break
+
+                    absolute_step_index = cycle_index * step_count + step_index
+                    scheduled_time = start_time + sum(s["duration"] for s in self.cycle_sequence[:step_index]) + \
+                                     cycle_index * sum(s["duration"] for s in self.cycle_sequence)
+
+                    wait_time = scheduled_time - time.time()
+                    if wait_time > 0:
+                        if self.stop_event.wait(wait_time):
+                            break  # Stop event triggered during wait
+
+                    current = step["current"]
+                    duration = step["duration"]
+                    self._notify_logger(Logger.INFO, f"Setting current to {current} A for {duration} s")
+
+                    source_handler.set_current(current)
 
         except Exception as e:
-            self._notify_logger(Logger.ERROR, f"Cycle Error {e}\n {traceback.format_exc()}")
+            self._notify_logger(Logger.ERROR, f"Cycle sequence error {e}\n {traceback.format_exc()}")
 
         if self.running:
             self.stop_data_collection()

@@ -4,6 +4,7 @@ import sys
 import tkinter as tk
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
+from apps.cycle_sequence_editor import CycleSequenceEditor
 from controllers.current_cycle_controller import CurrentCycleController
 from models.current_cycle_model import CurrentCycleModel
 from views.current_cycle_view import CurrentCycleView
@@ -33,8 +34,10 @@ class CurrentCycleMain:
             self.output_file_path
         )
 
-        view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile)
-        self.controller = CurrentCycleController(model, view)
+        self.view = CurrentCycleView(self.root, self.setting_manager, self.logger, profile)
+        self.view.set_cycle_sequence_editor_app_opener(self._cycle_sequence_editor)
+
+        self.controller = CurrentCycleController(model, self.view)
 
     def _load_settings(self):
         settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
@@ -66,6 +69,9 @@ class CurrentCycleMain:
             measure_func = lambda source: source.measure(),
             post_process_func = lambda a, v: v / a if v is not None else float('nan')
         )
+
+    def _cycle_sequence_editor(self):
+        CycleSequenceEditor(self.setting_manager, self.logger)
 
     def close_app(self):
         self.logger_manager.close()

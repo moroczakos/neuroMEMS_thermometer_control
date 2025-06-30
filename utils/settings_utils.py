@@ -1,4 +1,7 @@
 import json
+import os.path
+from datetime import datetime
+
 import pandas as pd
 
 
@@ -18,7 +21,14 @@ class SettingManager:
         try:
             with open(self.settings_file, "r") as f:
                 settings = json.load(f)
-                return settings.get(f"{setting_name}", "")
+
+                setting = settings.get(f"{setting_name}", "")
+
+                if setting_name == "log_files" or setting_name == "output_files":
+                    return os.path.join(setting, f"{datetime.now().strftime('%Y-%m-%d')}")
+
+                return setting
+
         except Exception as e:
             raise RuntimeError(f"Could not load settings: {e}")
 

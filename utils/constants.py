@@ -2,15 +2,13 @@ from enum import Enum
 
 
 class Keys:
-    CURRENT_HIGH = "current_high"
-    CURRENT_LOW = "current_low"
-    DURATION_HIGH = "duration_high"
-    DURATION_LOW = "duration_low"
     CYCLES = "cycles"
     INTERVAL = "interval"
     AVG_COUNT = "avg_count"
     CURRENT_RANGE_KEY = "Current range (A)"
     VOLTAGE_LIMIT_KEY = "Voltage limit (V)"
+    CYCLE_SEQUENCE = "cycle_sequence"
+    CYCLE_SEQUENCE_FILE = "cycle_sequence_file"
 
 
 class EntryConfig:
