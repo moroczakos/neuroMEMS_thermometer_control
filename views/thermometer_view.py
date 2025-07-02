@@ -3,6 +3,7 @@ import queue
 
 # ─── Third-Party Libraries ───────────────────────────────────────────────────
 import tkinter as tk
+import traceback
 from tkinter import ttk, messagebox
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ from utils.other_utils import (
 )
 from utils.plot_utils import create_dual_axis_plot
 from utils.ui_utils.logger_panel import LoggingPanel
-from utils.constants import Keys, EntryConfig, States, Logger
+from utils.constants import Keys, EntryConfig, States, Logger, UI
 
 
 class ThermometerView:
@@ -67,7 +68,8 @@ class ThermometerView:
         # Placeholder
         ttk.Label(self.frame, text = "").grid(row = 4, column = 0, pady = 53)
 
-        self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.average_count.get(), self.log)
+        self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.scrollbar,
+                                                 self.average_count.get(), self.log)
 
     def get_visa_resource(self):
         return self.visa_resource.get()
@@ -154,7 +156,7 @@ class ThermometerView:
                                               state = States.DISABLED)
         self.preview_stop_button.grid(row = 3, column = 5)
 
-    def _entry_with_label(self, row, col, label, variable, trace_callback=None, key=None, command=None):
+    def _entry_with_label(self, row, col, label, variable, trace_callback = None, key = None, command = None):
         ttk.Label(self.frame, text = label).grid(row = row, column = col)
         entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH,
                           justify = EntryConfig.JUSTIFY)
@@ -185,10 +187,31 @@ class ThermometerView:
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def _setup_plot(self):
-        _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
+        _, ax1, ax2, line1, line2, self.canvas, self.scrollbar = create_dual_axis_plot(
             self.root, f"Live {self.profile.name}", "Time (s)", self.profile.y1_label, self.profile.y2_label)
         self.lines = [line1, line2]
         self.axes = [ax1, ax2]
+        self.scrollbar.config(command = self._on_scroll)
+
+    def _on_scroll(self, *args):
+        try:
+            max_offset = self.live_data_plotter.get_max_offset()
+            view_offset = self.live_data_plotter.get_view_offset()
+
+            if args[0] == 'scroll':
+                delta = int(args[1]) * UI.MAX_POINTS
+                self.live_data_plotter.set_view_offset(min(max_offset, max(view_offset - delta, 0)))
+            elif args[0] == 'moveto':
+                # Slider drag
+                fraction = float(args[1])
+                view_offset = int((1 - fraction) * (max_offset + UI.MAX_POINTS))
+                self.live_data_plotter.set_view_offset(max(0, min(view_offset - UI.MAX_POINTS, max_offset)))
+
+            if not self.running:
+                self.live_data_plotter.update_plot()
+
+        except Exception as e:
+            self.logger.error(f"Scroll error: {e}\n{traceback.format_exc()}")
 
     def loading_connection(self, connect_func):
         return connect_with_popup(self.root, self.visa_resource.get(), self.logger, connect_func)
@@ -199,7 +222,7 @@ class ThermometerView:
             self.live_data_plotter.set_average_count(get_widget_value(self.average_count))
 
     @safe_execute
-    def _update_probe_values(self, event=None):
+    def _update_probe_values(self, event = None):
         probe = self.selected_probe.get()
         if probe in self.probes:
             self.R0.set(self.probes[probe]["R0"])

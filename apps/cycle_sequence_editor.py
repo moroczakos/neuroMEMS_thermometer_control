@@ -149,7 +149,7 @@ class CycleSequenceEditor(tk.Tk):
     def _get_sequence(self):
         sequence = []
         for row in self.tree.get_children():
-            current_str, duration_str = self.tree.item(row)["values"]
+            _, current_str, duration_str = self.tree.item(row)["values"]
             try:
                 current = float(current_str)
                 duration = float(duration_str)
@@ -164,28 +164,29 @@ class CycleSequenceEditor(tk.Tk):
         return sequence
 
     def _export_json(self):
-        sequence = self._get_sequence()
-        if sequence is None:
-            self.logger.warning("Export aborted due to invalid sequence.")
-            return
-
-        file_path = filedialog.asksaveasfilename(
-            defaultextension = ".json",
-            filetypes = [("JSON files", "*.json")],
-            title = "Export Cycle Sequence to JSON",
-            initialdir = self.input_file_path
-        )
-        if not file_path:
-            self.logger.info("Export canceled by user.")
-            return
-
         try:
+            sequence = self._get_sequence()
+            if sequence is None:
+                self.logger.warning("Export aborted due to invalid sequence.")
+                return
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension = ".json",
+                filetypes = [("JSON files", "*.json")],
+                title = "Export Cycle Sequence to JSON",
+                initialdir = self.input_file_path
+            )
+            if not file_path:
+                self.logger.info("Export canceled by user.")
+                return
+
             with open(file_path, "w") as f:
                 json.dump(sequence, f, indent = 4)
             messagebox.showinfo("Export Successful", f"Cycle sequence saved to {file_path}")
+            self._keep_window_top()
             self.logger.info(f"Cycle sequence exported to {file_path}")
         except Exception as e:
-            self.logger.error(f"Failed to export JSON: {e}")
+            self.logger.error(f"Failed to export JSON: {e}\n{traceback.format_exc()}")
             messagebox.showerror("Export Error", str(e))
             self._keep_window_top()
 

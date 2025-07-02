@@ -22,7 +22,7 @@ from utils.other_utils import (
 )
 from utils.plot_utils import create_dual_axis_plot
 from utils.ui_utils.logger_panel import LoggingPanel
-from utils.constants import Keys, EntryConfig, States, Labels, Logger
+from utils.constants import Keys, EntryConfig, States, Labels, Logger, UI
 from utils.ui_utils.tooltip import ToolTip
 
 
@@ -73,7 +73,8 @@ class CurrentCycleView:
         self._load_visa_resources()
         self._load_other_settings()
 
-        self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.average_count.get(), self.log)
+        self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.scrollbar,
+                                                 self.average_count.get(), self.log)
 
     def get_visa_resource(self):
         return self.visa_resource.get()
@@ -394,12 +395,33 @@ class CurrentCycleView:
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def _setup_plot(self):
-        _, ax1, ax2, line1, line2, self.canvas = create_dual_axis_plot(
+        _, ax1, ax2, line1, line2, self.canvas, self.scrollbar = create_dual_axis_plot(
             self.root, f"Live {self.profile.name}", "Time (s)", self.profile.y1_label, self.profile.y2_label,
             "blue",
             "black")
         self.lines = [line1, line2]
         self.axes = [ax1, ax2]
+        self.scrollbar.config(command = self._on_scroll)
+
+    def _on_scroll(self, *args):
+        try:
+            max_offset = self.live_data_plotter.get_max_offset()
+            view_offset = self.live_data_plotter.get_view_offset()
+
+            if args[0] == 'scroll':
+                delta = int(args[1]) * UI.MAX_POINTS
+                self.live_data_plotter.set_view_offset(min(max_offset, max(view_offset - delta, 0)))
+            elif args[0] == 'moveto':
+                # Slider drag
+                fraction = float(args[1])
+                view_offset = int((1 - fraction) * (max_offset + UI.MAX_POINTS))
+                self.live_data_plotter.set_view_offset(max(0, min(view_offset - UI.MAX_POINTS, max_offset)))
+
+            if not self.running:
+                self.live_data_plotter.update_plot()
+
+        except Exception as e:
+            self.logger.error(f"Scroll error: {e}\n{traceback.format_exc()}")
 
     def loading_connection(self, connect_func):
         return connect_with_popup(self.root, self.visa_resource.get(), self.logger, connect_func)
