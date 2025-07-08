@@ -97,8 +97,13 @@ class TemperatureMeasurementStationApp:
         pass
 
     def close_app(self):
-        self.thermometer_app.close_app()
-        self.cycle_app.close_app()
+        if self.thermometer_app.can_close_app() and self.cycle_app.can_close_app():
+            self.thermometer_app.close_app()
+            self.cycle_app.close_app()
+            self.root.destroy()
+            return True
+
+        return False
 
 
 if __name__ == "__main__":
@@ -109,9 +114,8 @@ if __name__ == "__main__":
 
 
     def on_close():
-        app.close_app()
-        root.destroy()
-        sys.exit(0)
+        if app.close_app():
+            sys.exit(0)
 
 
     root.protocol("WM_DELETE_WINDOW", on_close)

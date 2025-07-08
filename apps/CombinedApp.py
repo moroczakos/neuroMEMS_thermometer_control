@@ -30,9 +30,13 @@ class CombinedApp:
         self.app3 = TemperatureByRecalibratedProbeDataApp(self.tab3)
 
     def close_app(self):
-        self.app1.close_app()
-        self.app2.close_app()
-        self.app3.close_app()
+        if self.app1.close_app():
+            self.app2.close_app()
+            self.app3.close_app()
+            self.root.destroy()
+            return True
+
+        return False
 
 
 if __name__ == "__main__":
@@ -47,9 +51,8 @@ if __name__ == "__main__":
 
 
     def on_close():
-        app.close_app()
-        root.destroy()
-        sys.exit(0)
+        if app.close_app():
+            sys.exit(0)
 
 
     root.protocol("WM_DELETE_WINDOW", on_close)

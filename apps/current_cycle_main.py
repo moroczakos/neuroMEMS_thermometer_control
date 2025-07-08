@@ -2,6 +2,7 @@
 import os
 import sys
 import tkinter as tk
+from tkinter import messagebox
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from apps.cycle_sequence_editor import CycleSequenceEditor
@@ -39,6 +40,14 @@ class CurrentCycleMain:
 
         self.controller = CurrentCycleController(model, self.view)
 
+    def can_close_app(self):
+        if self.controller.is_running():
+            messagebox.showwarning("Closing", "Stop the running current measurement!\n"
+                                              "Press Stop button in the Current source app to close the app!")
+            return False
+
+        return True
+
     def _load_settings(self):
         settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
         setting_manager = SettingManager(settings_path)
@@ -74,7 +83,12 @@ class CurrentCycleMain:
         CycleSequenceEditor(self.setting_manager, self.logger)
 
     def close_app(self):
-        self.logger_manager.close()
+        if self.can_close_app():
+            self.logger_manager.close()
+            self.root.destroy()
+            return True
+
+        return False
 
 
 if __name__ == "__main__":
@@ -84,9 +98,8 @@ if __name__ == "__main__":
 
 
     def on_close():
-        app.close_app()
-        root.destroy()
-        sys.exit(0)
+        if app.close_app():
+            sys.exit(0)
 
 
     root.protocol("WM_DELETE_WINDOW", on_close)

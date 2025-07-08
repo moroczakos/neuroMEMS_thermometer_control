@@ -8,6 +8,9 @@ class CurrentCycleController:
         self.model.load_settings()
         self.model.attach(self.view)
 
+    def is_running(self):
+        return self.model.running or self.view.running
+
     def attach_to_model(self, observer):
         self.model.attach(observer)
 
