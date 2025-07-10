@@ -4,6 +4,9 @@ import traceback
 from tkinter import ttk, messagebox, filedialog
 import json
 
+from utils.constants import Keys
+from utils.ui_utils.tooltip import ToolTip
+
 
 class CycleSequenceEditor(tk.Tk):
     def __init__(self, setting_manager, logger):
@@ -26,7 +29,8 @@ class CycleSequenceEditor(tk.Tk):
         # Treeview widget
         self.tree = ttk.Treeview(tree_frame, columns = ("Step", "Current", "Duration"), show = "headings",
                                  selectmode = "browse")
-        self.tree.heading("Step", text = "#")
+        self.tree.tag_configure("offset", background = "#e0e0e0")
+        self.tree.heading("Step", text = "Step #")
         self.tree.heading("Current", text = "Current (A)")
         self.tree.heading("Duration", text = "Duration (s)")
 
@@ -52,15 +56,31 @@ class CycleSequenceEditor(tk.Tk):
                                                                                                 padx = 5)
         tk.Button(button_frame, text = "Move Up", command = self._move_up).grid(row = 0, column = 2, padx = 5)
         tk.Button(button_frame, text = "Move Down", command = self._move_down).grid(row = 0, column = 3, padx = 5)
-        tk.Button(button_frame, text = "Import JSON", command = self._import_json).grid(row = 0, column = 4, padx = 5)
-        tk.Button(button_frame, text = "Export JSON", command = self._export_json).grid(row = 0, column = 5, padx = 5)
+        tk.Button(button_frame, text = "Load", command = self._import_json).grid(row = 0, column = 4, padx = 5)
+        tk.Button(button_frame, text = "Save", command = self._export_json).grid(row = 0, column = 5, padx = 5)
+
+        self.info_label = tk.Label(button_frame, text = "ⓘ", font = ("Arial", 12), bd = 1, relief = "solid",
+                                   bg = "#e0e0e0", padx = 5, pady = 2)
+        self.info_label.grid(row = 0, column = 6, padx = 5)
+        ToolTip(self.info_label,
+                "Description of the Cycle Sequence Editor.\n \n"
+                "This editor is used to determine the shape of the current source.\n"
+                "The consecutive steps determine one cycle. One step contains the \n"
+                "duration of the set current.\n"
+                "These steps within a cycle are repeated n times when the 'Current \n"
+                "source app' is started. The number of cycles is determined by the \n"
+                "'Cycles' field of the 'Current source app'. A preview is also shown \n"
+                "in the app.\n"
+                "The offset is used once before the first cycle.\n"
+                "Is it possible to load/save the steps from/to a JSON file.",
+                text_alignment = "left")
 
         self.entry_popup = None
 
         self.logger.info(f"Cycle Sequence Editor is opened.")
 
         # Load default cycle JSON on startup
-        default_file = os.path.join(self.input_file_path, "default_cycle.json")
+        default_file = os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE_FILE))
         if os.path.exists(default_file):
             self.logger.info(f"Loading default cycle file: {default_file}")
             self._load_json_file(default_file)
@@ -88,15 +108,26 @@ class CycleSequenceEditor(tk.Tk):
             self._add_step()
 
     def _add_step(self, current = "0.01", duration = "1.0"):
-        step_number = len(self.tree.get_children()) + 1
+        step_number = len(self.tree.get_children())
+        if step_number == 0:
+            self.logger.info("Offset row is missing, inserting Offset.")
+            self.tree.insert("", "end", values = ("Offset", "0.0", "0.0"), tags = ("offset",))  # Offset step
+            step_number += 1
+
         self.logger.info(f"Added step #{step_number}: current={current} A, duration={duration} s")
         self.tree.insert("", "end", values = (step_number, current, duration))
         self._renumber_steps()
 
     def _renumber_steps(self):
-        for idx, row in enumerate(self.tree.get_children(), start = 1):
+        children = self.tree.get_children()
+        for idx, row in enumerate(children):
             current, duration = self.tree.item(row, "values")[1:]
-            self.tree.item(row, values = (idx, current, duration))
+            if idx == 0:
+                step_number = "Offset"
+                self.tree.item(row, values = (step_number, current, duration), tags = ("offset",))
+            else:
+                step_number = str(idx)
+                self.tree.item(row, values = (step_number, current, duration))
 
     def _remove_selected(self):
         selected = self.tree.selection()
@@ -148,7 +179,7 @@ class CycleSequenceEditor(tk.Tk):
 
     def _get_sequence(self):
         sequence = []
-        for row in self.tree.get_children():
+        for idx, row in enumerate(self.tree.get_children()):
             _, current_str, duration_str = self.tree.item(row)["values"]
             try:
                 current = float(current_str)
@@ -168,7 +199,7 @@ class CycleSequenceEditor(tk.Tk):
             sequence = self._get_sequence()
             if sequence is None:
                 self.logger.warning("Export aborted due to invalid sequence.")
-                return
+                return False
 
             file_path = filedialog.asksaveasfilename(
                 defaultextension = ".json",
@@ -178,13 +209,15 @@ class CycleSequenceEditor(tk.Tk):
             )
             if not file_path:
                 self.logger.info("Export canceled by user.")
-                return
+                return False
 
             with open(file_path, "w") as f:
                 json.dump(sequence, f, indent = 4)
             messagebox.showinfo("Export Successful", f"Cycle sequence saved to {file_path}")
             self._keep_window_top()
             self.logger.info(f"Cycle sequence exported to {file_path}")
+
+            return True
         except Exception as e:
             self.logger.error(f"Failed to export JSON: {e}\n{traceback.format_exc()}")
             messagebox.showerror("Export Error", str(e))
@@ -207,12 +240,18 @@ class CycleSequenceEditor(tk.Tk):
             if not isinstance(sequence, list):
                 raise ValueError("JSON root should be a list.")
 
-            # Clear existing steps
-            for item in self.tree.get_children():
-                self.tree.delete(item)
+            # Clear the tree
+            self.tree.delete(*self.tree.get_children())
 
-            for step in sequence:
-                self._add_step(current = str(step["current"]), duration = str(step["duration"]))
+            # Offset as Step 0
+            if sequence and "current" in sequence[0] and "duration" in sequence[0]:
+                offset = sequence.pop(0)
+                self.tree.insert("", "end", values = ("Offset", offset["current"], offset["duration"]),
+                                 tags = ("offset",))
+
+            # Add remaining steps
+            for idx, step in enumerate(sequence, start = 1):
+                self.tree.insert("", "end", values = (idx, step["current"], step["duration"]))
 
             messagebox.showinfo("Import Successful", f"Loaded {len(sequence)} steps.")
             self._keep_window_top()
@@ -274,5 +313,26 @@ class CycleSequenceEditor(tk.Tk):
     def on_close(self):
         self._cancel_edit()
 
-        self.logger.info(f"Cycle Sequence Editor is closed.")
-        self.destroy()
+        result = messagebox.askyesnocancel(
+            "Exit Confirmation",
+            "Do you want to save the cycle sequence before closing?\n\n"
+            "Yes: Save changes\n"
+            "No: Discard changes\n"
+            "Cancel: Stay in editor"
+        )
+        self._keep_window_top()
+
+        if result is None:
+            self.logger.info("Close cancelled by user.")
+            return  # Cancel: do nothing
+        elif result:  # Yes: Save
+            self.logger.info("User chose to save before exiting.")
+
+            if not self._export_json():
+                return
+
+            self.logger.info("Cycle Sequence Editor closed after save.")
+            self.destroy()
+        else:  # No: Discard
+            self.logger.info("User chose to discard changes and exit.")
+            self.destroy()

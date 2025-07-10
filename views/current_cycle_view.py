@@ -231,20 +231,22 @@ class CurrentCycleView:
         return entry
 
     def _generate_waveform(self, sequence, n_cycles):
+        def append_step(time_points, current_points, current_time, step):
+            time_points.extend([current_time, current_time + step["duration"]])
+            current_points.extend([step["current"], step["current"]])
+            return current_time + step["duration"]
+
         time_points = []
         current_points = []
-
         current_time = 0
+
+        if sequence and all(k in sequence[0] for k in ("current", "duration")):
+            current_time = append_step(time_points, current_points, current_time, sequence.pop(0))
+
         for _ in range(n_cycles):
             for step in sequence:
-                # Add start of the step
-                time_points.append(current_time)
-                current_points.append(step["current"])
+                current_time = append_step(time_points, current_points, current_time, step)
 
-                # Add end of the step
-                current_time += step["duration"]
-                time_points.append(current_time)
-                current_points.append(step["current"])
         return time_points, current_points
 
     def _plot_waveform(self):

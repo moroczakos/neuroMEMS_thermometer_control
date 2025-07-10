@@ -1,10 +1,12 @@
 import tkinter as tk
 
+
 class ToolTip:
-    def __init__(self, widget, text, delay=500):
+    def __init__(self, widget, text, text_alignment = "center", delay = 500):
         self.widget = widget
         self.text = text
         self.delay = delay  # milliseconds
+        self.text_alignment = text_alignment
         self.tip_window = None
         self.after_id = None
 
@@ -12,16 +14,16 @@ class ToolTip:
         widget.bind("<Leave>", self._on_leave)
         widget.bind("<Motion>", self._on_motion)
 
-    def _on_enter(self, event=None):
+    def _on_enter(self, event = None):
         self.after_id = self.widget.after(self.delay, self._show_tip)
 
-    def _on_leave(self, event=None):
+    def _on_leave(self, event = None):
         self._hide_tip()
         if self.after_id:
             self.widget.after_cancel(self.after_id)
             self.after_id = None
 
-    def _on_motion(self, event=None):
+    def _on_motion(self, event = None):
         if self.tip_window:
             x, y = event.x_root + 10, event.y_root + 10
             self.tip_window.geometry(f"+{x}+{y}")
@@ -44,9 +46,8 @@ class ToolTip:
         tw.wm_overrideredirect(True)
         tw.geometry(f"+{x}+{y}")
         label = tk.Label(
-            tw, text = self.text, background = "#ffffe0",
-            relief = "solid", borderwidth = 1,
-            font = ("tahoma", "9", "normal")
+            tw, text = self.text, background = "#ffffe0", relief = "solid", borderwidth = 1,
+            justify = self.text_alignment, font = ("tahoma", "9", "normal")
         )
         label.pack(ipadx = 5, ipady = 2)
 

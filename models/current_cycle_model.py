@@ -135,41 +135,69 @@ class CurrentCycleModel:
             self.csv_data_logger.stop()
 
     def _cycle_sequence_loop(self):
-        source_handler = self.instrument_manager.get_handler(self.instrument_alias)
-        start_time = time.time()
-
         try:
-            step_count = len(self.cycle_sequence)
+            source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+            start_time = time.time()
+
+            self._notify_logger(Logger.INFO, "Starting offset")
+            offset = self.cycle_sequence.pop(0)
+            if not self._wait_and_set_current(source_handler, offset, start_time):
+                return  # Stop event triggered during offset wait
+
             for cycle_index in range(self.cycles):
                 if self.stop_event.is_set():
                     break
 
                 self._notify_logger(Logger.INFO, f"Starting cycle {cycle_index + 1}/{self.cycles}")
-
-                for step_index, step in enumerate(self.cycle_sequence):
-                    if self.stop_event.is_set():
-                        break
-
-                    absolute_step_index = cycle_index * step_count + step_index
-                    scheduled_time = start_time + sum(s["duration"] for s in self.cycle_sequence[:step_index]) + \
-                                     cycle_index * sum(s["duration"] for s in self.cycle_sequence)
-
-                    wait_time = scheduled_time - time.time()
-                    if wait_time > 0:
-                        if self.stop_event.wait(wait_time):
-                            break  # Stop event triggered during wait
-
-                    current = step["current"]
-                    duration = step["duration"]
-                    self._notify_logger(Logger.INFO, f"Setting current to {current} A for {duration} s")
-
-                    source_handler.set_current(current)
+                if not self._handle_cycle(source_handler, start_time, offset["duration"], cycle_index):
+                    break  # Stop event triggered during cycle
 
         except Exception as e:
-            self._notify_logger(Logger.ERROR, f"Cycle sequence error {e}\n {traceback.format_exc()}")
+            self._notify_logger(Logger.ERROR, f"Cycle sequence error {e}\n{traceback.format_exc()}")
 
         if self.running:
             self.stop_data_collection()
+
+    def _wait_and_set_current(self, source_handler, step, start_time):
+        scheduled_time = start_time + step["duration"]
+
+        if not self._wait_until(scheduled_time):
+            return False
+
+        self._set_current(source_handler, step["current"], step["duration"])
+
+        return True
+
+    def _handle_cycle(self, source_handler, start_time, offset_duration, cycle_index):
+        total_cycle_duration = sum(step["duration"] for step in self.cycle_sequence)
+
+        for step_index, step in enumerate(self.cycle_sequence):
+            if self.stop_event.is_set():
+                break
+
+            scheduled_time = (
+                    start_time +
+                    offset_duration +
+                    sum(s["duration"] for s in self.cycle_sequence[:step_index]) +
+                    cycle_index * total_cycle_duration
+            )
+
+            if not self._wait_until(scheduled_time):
+                return False
+
+            self._set_current(source_handler, step["current"], step["duration"])
+
+        return True
+
+    def _wait_until(self, scheduled_time):
+        wait_time = scheduled_time - time.time()
+        if wait_time > 0:
+            return not self.stop_event.wait(wait_time)
+        return True
+
+    def _set_current(self, source_handler, current, duration):
+        self._notify_logger(Logger.INFO, f"Setting current to {current} A for {duration} s")
+        source_handler.set_current(current)
 
     def _measure_loop(self):
         while self.running:
