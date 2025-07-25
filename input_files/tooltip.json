@@ -1,0 +1,5 @@
+{
+    "edit_cycle_button": "Create, edit or save a waveform. It does not change the currently loaded waveform.",
+    "change_cycle_setting_button": "Change the waveform of the cycle sequence. The loaded sequence is plotted.",
+    "preview_canvas_widget": "Shows the whole current cycle sequence: the waveform is repeated according to the number of cycles.\n Click figure to enlarge."
+}

@@ -10,8 +10,10 @@ from tkinter import ttk, messagebox, filedialog
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from base_classes.view_base import ViewBase
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from instruments.instrument_manager import InstrumentManager
+from utils.settings_utils import load_tooltip_data
 from utils.ui_utils.live_plotter import LiveDataPlotter
 from utils.logger_manager import safe_execute
 from utils.other_utils import (
@@ -21,28 +23,21 @@ from utils.other_utils import (
     save_setting_from_widget,
 )
 from utils.plot_utils import create_dual_axis_plot
-from utils.ui_utils.logger_panel import LoggingPanel
 from utils.constants import Keys, EntryConfig, States, Labels, Logger, UI
 from utils.ui_utils.tooltip import ToolTip
 
 
-class CurrentCycleView:
+class CurrentCycleView(ViewBase):
     def __init__(self, root, setting_manager, logger, profile):
-        self.root = tk.Frame(root)
-        self.root.pack(fill = 'both', expand = True)
+        ViewBase.__init__(self, root, setting_manager, logger)
+
         self.controller = None
         self.live_data_plotter = None
         self.open_editor = None
 
         # Settings
-        self.setting_manager = setting_manager
         self.start_low = True  # Square wave current starts with low value
         self.profile = profile
-        self.project_root = ".."  # find_project_root()
-        self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
-
-        # Logger
-        self.logger = logger
 
         # Instrument
         self.instrument_manager = InstrumentManager()
@@ -67,9 +62,11 @@ class CurrentCycleView:
         self.cycle_sequence_waveform_label = tk.StringVar(
             value = f"Selected cycle waveform: {self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE_FILE)} (click to enlarge)")
 
+        self.tooltips = load_tooltip_data(
+            os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.TOOLTIPS)))
         self._create_widgets()
         self._setup_plot()
-        self._setup_logger_panel()
+        self.setup_logger_panel()
         self._load_visa_resources()
         self._load_other_settings()
 
@@ -87,13 +84,6 @@ class CurrentCycleView:
 
     def set_cycle_sequence_editor_app_opener(self, opener):
         self.open_editor = opener
-
-    def _setup_logger_panel(self):
-        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
-        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
-        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
-
-        self.log(Logger.INFO, "Application started and UI initialized.")
 
     def _create_widgets(self):
         self.frame = ttk.Frame(self.root, padding = 10)
@@ -123,8 +113,7 @@ class CurrentCycleView:
         self.edit_cycle_button = ttk.Button(self.frame, text = "Cycle waveform editor",
                                             command = self._edit_cycle_setting)
         self.edit_cycle_button.grid(row = row, column = 0, columnspan = 2)
-        ToolTip(self.edit_cycle_button,
-                "Create, edit or save a waveform. It does not change the currently loaded waveform.")
+        ToolTip(self.edit_cycle_button, self.tooltips.get("edit_cycle_button", ""))
 
         ttk.Label(self.frame, textvariable = self.cycle_sequence_waveform_label, foreground = 'black',
                   justify = 'center').grid(row = row, column = 2, columnspan = 4)
@@ -133,8 +122,7 @@ class CurrentCycleView:
         self.change_cycle_setting_button = ttk.Button(self.frame, text = "Change cycle waveform file",
                                                       command = self._change_cycle_setting_file)
         self.change_cycle_setting_button.grid(row = row, column = 0, columnspan = 2)
-        ToolTip(self.change_cycle_setting_button,
-                "Change the waveform of the cycle sequence. The loaded sequence is plotted.")
+        ToolTip(self.change_cycle_setting_button, self.tooltips.get("change_cycle_setting_button", ""))
 
         row += 2
         self.cycles_entry = self._entry_with_label(row, 0, "Cycles:", self.cycles, self._save_entry_value,
@@ -149,9 +137,7 @@ class CurrentCycleView:
         self.preview_canvas_widget.grid(row = row, column = 2, columnspan = 4, rowspan = 3, sticky = "w", padx = 5,
                                         pady = 5)
         self.preview_canvas_widget.bind("<Button-1>", self._show_full_plot_popup)
-        ToolTip(self.preview_canvas_widget,
-                "Shows the whole current cycle sequence: the waveform\n"
-                "is repeated according to the number of cycles.\n Click figure to enlarge.")
+        ToolTip(self.preview_canvas_widget, self.tooltips.get("preview_canvas_widget", ""))
 
         self.preview_ax.tick_params(
             axis = 'both',  # apply to both x and y axes
@@ -492,12 +478,3 @@ class CurrentCycleView:
                 current,
                 voltage if voltage is not None else float('nan')
             )
-
-    def log(self, message_type, message):
-        if message_type == Logger.INFO:
-            self.root.after(0, lambda: self.logger.info(message))
-        elif message_type == Logger.WARNING:
-            self.root.after(0, lambda: self.logger.warning(message))
-        else:
-            self.root.after(0, lambda: self.logger.error(message))
-            messagebox.showerror("Error", message)

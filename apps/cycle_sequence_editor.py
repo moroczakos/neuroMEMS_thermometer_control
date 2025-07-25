@@ -72,7 +72,9 @@ class CycleSequenceEditor(tk.Tk):
                 "'Cycles' field of the 'Current source app'. A preview is also shown \n"
                 "in the app.\n"
                 "The offset is used once before the first cycle.\n"
+                "Press Enter after inserting a value to override the previous value. \n"
                 "Is it possible to load/save the steps from/to a JSON file.",
+                wraplength = 500,
                 text_alignment = "left")
 
         self.entry_popup = None

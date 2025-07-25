@@ -1,12 +1,12 @@
 {
-    "probe": "T1",
+    "probe": "TE6",
     "interval": 0.02,
     "avg_count": 3,
     "current_high": 0.5,
     "current_low": 0.001,
     "duration_high": 2,
     "duration_low": 4,
-    "cycles": 5,
+    "cycles": 2,
     "device_settings": {
         "Current range (A)": 0.5,
         "Voltage limit (V)": 25.0
@@ -14,47 +14,20 @@
     "input_files": "input_files",
     "output_files": "output_files",
     "log_files": "logs",
-    "cycle_sequence_file": "saw_tooth_wave.json",
+    "cycle_sequence_file": "square_wave3.json",
     "cycle_sequence": [
         {
-            "current": 0.1,
-            "duration": 0.5
+            "current": 0.01,
+            "duration": 2.0
         },
         {
             "current": 0.2,
-            "duration": 0.5
-        },
-        {
-            "current": 0.3,
-            "duration": 0.5
+            "duration": 2.0
         },
         {
             "current": 0.4,
-            "duration": 0.5
-        },
-        {
-            "current": 0.5,
-            "duration": 0.5
-        },
-        {
-            "current": 0.6,
-            "duration": 0.5
-        },
-        {
-            "current": 0.7,
-            "duration": 0.5
-        },
-        {
-            "current": 0.8,
-            "duration": 0.5
-        },
-        {
-            "current": 0.9,
-            "duration": 0.5
-        },
-        {
-            "current": 1,
-            "duration": 0.5
+            "duration": 4.0
         }
-    ]
+    ],
+    "tooltips": "tooltip.json"
 }

@@ -8,22 +8,21 @@ from tkinter import messagebox
 from apps.cycle_sequence_editor import CycleSequenceEditor
 from controllers.current_cycle_controller import CurrentCycleController
 from models.current_cycle_model import CurrentCycleModel
+from base_classes.main_base import MainBase
 from views.current_cycle_view import CurrentCycleView
 from instruments.instrument_manager import InstrumentManager
-from utils.other_utils import find_project_root
-from utils.settings_utils import SettingManager
-from utils.logger_manager import LoggerManager
 from utils.measurement_profile import MeasurementProfile
 
 
-class CurrentCycleMain:
+class CurrentCycleMain(MainBase):
     def __init__(self, root):
+        MainBase.__init__(self)
+
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
-        self.project_root = ".."  # find_project_root()
-        self.setting_manager = self._load_settings()
-        self.logger = self._setup_logger()
+        self.setup_logger("current_source_app.log")
+        self.output_file_path = os.path.join(self.output_base_file_path, "current_cycle")
 
         instrument_manager = InstrumentManager()
         profile = self._create_measurement_profile()
@@ -48,27 +47,6 @@ class CurrentCycleMain:
 
         return True
 
-    def _load_settings(self):
-        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
-        setting_manager = SettingManager(settings_path)
-
-        self.input_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("input_files")
-        )
-        self.output_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files"), "current_cycle"
-        )
-        self.log_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("log_files")
-        )
-
-        return setting_manager
-
-    def _setup_logger(self):
-        log_path = os.path.join(self.log_file_path, "current_source_app.log")
-        self.logger_manager = LoggerManager(log_file = log_path)
-        return self.logger_manager.get_logger()
-
     def _create_measurement_profile(self):
         return MeasurementProfile(
             name = "Current/Voltage/Resistance",
@@ -84,7 +62,6 @@ class CurrentCycleMain:
 
     def close_app(self):
         if self.can_close_app():
-            self.logger_manager.close()
             self.root.destroy()
             return True
 

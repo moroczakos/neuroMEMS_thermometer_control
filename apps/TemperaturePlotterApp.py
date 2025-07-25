@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 from tkinter import Tk, filedialog, Button, Label, Frame, Spinbox, IntVar, StringVar, Entry, Checkbutton
 from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from utils.logger_manager import LoggerManager
-from utils.settings_utils import SettingManager
-from utils.ui_utils.logger_panel import LoggingPanel
+from base_classes.main_base import MainBase
+from base_classes.view_base import ViewBase
 
 
-class TemperaturePlotterApp:
+class TemperaturePlotterApp(MainBase, ViewBase):
     def __init__(self, root):
         """Initialize the GUI app."""
+        MainBase.__init__(self)
+        ViewBase.__init__(self, root, self.setting_manager, self.logger)
+
         self.root = Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
@@ -34,41 +36,10 @@ class TemperaturePlotterApp:
         self.show_legend = IntVar(value = 1)
 
         # Logger
-        self.project_root = ".."  # find_project_root()
-        self.setting_manager = self._load_settings()
-        self.logger = self._setup_logger()
+        self.setup_logger("temperature_plotter_app.log")
 
         self.setup_ui()
         self.setup_logger_panel()
-
-    def _load_settings(self):
-        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
-        setting_manager = SettingManager(settings_path)
-
-        self.input_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("input_files")
-        )
-        self.output_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files")
-        )
-        self.log_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("log_files")
-        )
-        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
-
-        return setting_manager
-
-    def _setup_logger(self):
-        log_path = os.path.join(self.log_file_path, "temperature_plotter_app.log")
-        self.logger_manager = LoggerManager(log_file = log_path)
-        return self.logger_manager.get_logger()
-
-    def setup_logger_panel(self):
-        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
-        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
-        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
-
-        self.logger.info("Application started and UI initialized.")
 
     def setup_ui(self):
         """Set up the main user interface components."""
@@ -155,7 +126,7 @@ class TemperaturePlotterApp:
             self.file_label.config(text = "No file selected.")
             self.logger.warning("No file was selected.")
 
-    def update_plot(self, change_message=""):
+    def update_plot(self, change_message = ""):
         """Update the plot if a file is loaded and input changes."""
         if self.file_path:
             self.logger.info(f"Plot update triggered by input change. {change_message}")
@@ -223,7 +194,7 @@ class TemperaturePlotterApp:
         smoothed = pd.Series(compensated).rolling(window = window, min_periods = 1).mean()
         return drift, compensated, smoothed
 
-    def find_transitions(self, signal, threshold=None, min_distance=50):
+    def find_transitions(self, signal, threshold = None, min_distance = 50):
         """Find the transition points in the signal."""
         threshold = threshold if threshold is not None else np.mean(signal)
         transitions = np.where(np.diff(signal > threshold))[0] + 1  # Find points where signal crosses threshold
@@ -371,7 +342,7 @@ class TemperaturePlotterApp:
         canvas.get_tk_widget().pack()
 
     def close_app(self):
-        self.logger_manager.close()
+        self.root.destroy()
 
 
 if __name__ == "__main__":
@@ -383,7 +354,6 @@ if __name__ == "__main__":
 
     def on_close():
         app.close_app()
-        root.destroy()
         sys.exit(0)
 
 

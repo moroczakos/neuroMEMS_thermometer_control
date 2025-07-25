@@ -7,22 +7,22 @@ from tkinter import messagebox
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from controllers.thermometer_controller import ThermometerController
 from models.thermometer_model import ThermometerModel
+from base_classes.main_base import MainBase
 from views.thermometer_view import ThermometerView
 from instruments.instrument_manager import InstrumentManager
-from utils.other_utils import find_project_root
-from utils.settings_utils import SettingManager
-from utils.logger_manager import LoggerManager
 from utils.measurement_profile import MeasurementProfile
 
 
-class ThermometerMain:
+class ThermometerMain(MainBase):
     def __init__(self, root):
+        MainBase.__init__(self)
+
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
-        self.project_root = ".."  # find_project_root()
-        self.setting_manager = self._load_settings()
-        self.logger = self._setup_logger()
+        self.setup_logger("thermometer_app.log")
+        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
+        self.output_file_path = os.path.join(self.output_base_file_path, "thermometer")
 
         instrument_manager = InstrumentManager()
         profile = self._create_measurement_profile()
@@ -47,28 +47,6 @@ class ThermometerMain:
 
         return True
 
-    def _load_settings(self):
-        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
-        setting_manager = SettingManager(settings_path)
-
-        self.input_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("input_files")
-        )
-        self.output_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files"), "thermometer"
-        )
-        self.log_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("log_files")
-        )
-        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
-
-        return setting_manager
-
-    def _setup_logger(self):
-        log_path = os.path.join(self.log_file_path, "thermometer_app.log")
-        self.logger_manager = LoggerManager(log_file = log_path)
-        return self.logger_manager.get_logger()
-
     def _create_measurement_profile(self):
         return MeasurementProfile(
             name = "Resistance/Temperature",
@@ -81,7 +59,6 @@ class ThermometerMain:
 
     def close_app(self):
         if self.can_close_app():
-            self.logger_manager.close()
             self.root.destroy()
             return True
 

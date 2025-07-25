@@ -2,11 +2,12 @@ import tkinter as tk
 
 
 class ToolTip:
-    def __init__(self, widget, text, text_alignment = "center", delay = 500):
+    def __init__(self, widget, text, wraplength = 200, text_alignment = "center", delay = 500):
         self.widget = widget
         self.text = text
         self.delay = delay  # milliseconds
         self.text_alignment = text_alignment
+        self.wraplength = wraplength
         self.tip_window = None
         self.after_id = None
 
@@ -47,7 +48,7 @@ class ToolTip:
         tw.geometry(f"+{x}+{y}")
         label = tk.Label(
             tw, text = self.text, background = "#ffffe0", relief = "solid", borderwidth = 1,
-            justify = self.text_alignment, font = ("tahoma", "9", "normal")
+            wraplength = self.wraplength, justify = self.text_alignment, font = ("tahoma", "9", "normal")
         )
         label.pack(ipadx = 5, ipady = 2)
 

@@ -2,23 +2,26 @@ import os
 import sys
 import tkinter as tk
 from tkinter import Tk, ttk, filedialog
-from utils.logger_manager import LoggerManager
-from utils.ui_utils.logger_panel import LoggingPanel
-from utils.settings_utils import load_probe_data, SettingManager
+
+from base_classes.main_base import MainBase
+from base_classes.view_base import ViewBase
+from utils.settings_utils import load_probe_data
 import csv
 import traceback
 
 
-class TemperatureByRecalibratedProbeDataApp:
+class TemperatureByRecalibratedProbeDataApp(MainBase, ViewBase):
     def __init__(self, root):
+        MainBase.__init__(self)
+        ViewBase.__init__(self, root, self.setting_manager, self.logger)
+
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
         # File paths and settings
         self.file_path = None  # To store the file path selected by user
-        self.project_root = ".."  # find_project_root()
-        self.setting_manager = self._load_settings()
-        self.logger = self._setup_logger()
+        self.setup_logger("thermometer_calibration_app.log")
+        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
 
         # Probes
         self.probes = load_probe_data(self.probe_path)
@@ -29,35 +32,6 @@ class TemperatureByRecalibratedProbeDataApp:
 
         self.setup_ui()
         self.setup_logger_panel()
-
-    def _load_settings(self):
-        settings_path = os.path.join(self.project_root, 'input_files', 'settings.json')
-        setting_manager = SettingManager(settings_path)
-
-        self.input_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("input_files")
-        )
-        self.output_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files")
-        )
-        self.log_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("log_files")
-        )
-        self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
-
-        return setting_manager
-
-    def _setup_logger(self):
-        log_path = os.path.join(self.log_file_path, "thermometer_calibration_app.log")
-        self.logger_manager = LoggerManager(log_file = log_path)
-        return self.logger_manager.get_logger()
-
-    def setup_logger_panel(self):
-        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
-        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
-        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
-
-        self.logger.info("Application started and UI initialized.")
 
     def setup_ui(self):
         """Set up the main user interface components."""
@@ -102,7 +76,7 @@ class TemperatureByRecalibratedProbeDataApp:
             self.calibrate_button.config(state = "disabled")
             self.logger.warning("No file was selected.")
 
-    def update_probe_values(self, event=None):
+    def update_probe_values(self, event = None):
         probe = self.selected_probe.get()
         if probe in self.probes:
             self.R0.set(self.probes[probe]["R0"])
@@ -164,7 +138,7 @@ class TemperatureByRecalibratedProbeDataApp:
         return os.path.join(directory, new_filename)
 
     def close_app(self):
-        self.logger_manager.close()
+        self.root.destroy()
 
 
 if __name__ == "__main__":
@@ -176,7 +150,6 @@ if __name__ == "__main__":
 
     def on_close():
         app.close_app()
-        root.destroy()
         sys.exit(0)
 
 

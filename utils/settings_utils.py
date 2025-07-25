@@ -13,6 +13,14 @@ def load_probe_data(csv_path):
         raise RuntimeError(f"Failed to load probes: {e}")
 
 
+def load_tooltip_data(json_path):
+    try:
+        with open(json_path, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load tooltip texts: {e}")
+
+
 class SettingManager:
     def __init__(self, settings_file):
         self.settings_file = settings_file

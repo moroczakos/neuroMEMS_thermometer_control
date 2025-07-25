@@ -152,6 +152,12 @@ class CurrentCycleModel:
                 if not self._handle_cycle(source_handler, start_time, offset["duration"], cycle_index):
                     break  # Stop event triggered during cycle
 
+            # Wait for the duration of the last step if no stop was triggered
+            if not self.stop_event.is_set() and self.cycle_sequence:
+                last_duration = self.cycle_sequence[-1]["duration"]
+                if self.stop_event.wait(last_duration):
+                    return
+
         except Exception as e:
             self._notify_logger(Logger.ERROR, f"Cycle sequence error {e}\n{traceback.format_exc()}")
 
