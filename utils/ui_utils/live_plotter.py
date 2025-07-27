@@ -5,7 +5,7 @@ import traceback
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
 from utils.plot_utils import update_plot
-from utils.constants import UI, Logger
+from utils.constants import Logger
 
 
 class LiveDataPlotter:
@@ -25,6 +25,7 @@ class LiveDataPlotter:
         self.logger = logger
         self.average_count_var = average_count
         self.max_offset = 0
+        self.max_points_to_plot = 100
 
         self.canvas = canvas
         self.axes = axes
@@ -40,6 +41,9 @@ class LiveDataPlotter:
 
     def get_view_offset(self):
         return self.view_offset
+
+    def set_max_points_to_plot(self, value):
+        self.max_points_to_plot = value
 
     def set_average_count(self, average_count):
         self.average_count_var = average_count
@@ -81,14 +85,14 @@ class LiveDataPlotter:
     def update_plot(self):
         # Calculate window range
         end = len(self.full_timestamps) - self.view_offset
-        start = max(0, end - UI.MAX_POINTS)
+        start = max(0, end - self.max_points_to_plot)
 
         self.timestamps = self.full_timestamps[start:end]
         self.y1_data = self.full_y1_data[start:end]
         self.y2_data = self.full_y2_data[start:end]
 
         total_points = len(self.full_timestamps)
-        max_points = UI.MAX_POINTS
+        max_points = self.max_points_to_plot
         self.max_offset = max(total_points - max_points, 0)
 
         if total_points == 0:

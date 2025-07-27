@@ -5,6 +5,7 @@ from tkinter import ttk, messagebox, filedialog
 import json
 
 from utils.constants import Keys
+from utils.settings_utils import load_tooltip_data
 from utils.ui_utils.tooltip import ToolTip
 
 
@@ -20,6 +21,8 @@ class CycleSequenceEditor(tk.Tk):
         self.project_root = ".."  # find_project_root()
         self.setting_manager = setting_manager
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
+        self.tooltips = load_tooltip_data(
+            os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.TOOLTIPS)))
         self.logger = logger
 
         # Frame to hold Treeview and scrollbar together
@@ -59,22 +62,10 @@ class CycleSequenceEditor(tk.Tk):
         tk.Button(button_frame, text = "Load", command = self._import_json).grid(row = 0, column = 4, padx = 5)
         tk.Button(button_frame, text = "Save", command = self._export_json).grid(row = 0, column = 5, padx = 5)
 
-        self.info_label = tk.Label(button_frame, text = "ⓘ", font = ("Arial", 12), bd = 1, relief = "solid",
+        self.info_label = tk.Label(button_frame, text = "Ⓘ", font = ("Arial", 12), bd = 1, relief = "solid",
                                    bg = "#e0e0e0", padx = 5, pady = 2)
         self.info_label.grid(row = 0, column = 6, padx = 5)
-        ToolTip(self.info_label,
-                "Description of the Cycle Sequence Editor.\n \n"
-                "This editor is used to determine the shape of the current source.\n"
-                "The consecutive steps determine one cycle. One step contains the \n"
-                "duration of the set current.\n"
-                "These steps within a cycle are repeated n times when the 'Current \n"
-                "source app' is started. The number of cycles is determined by the \n"
-                "'Cycles' field of the 'Current source app'. A preview is also shown \n"
-                "in the app.\n"
-                "The offset is used once before the first cycle.\n"
-                "Press Enter after inserting a value to override the previous value. \n"
-                "Is it possible to load/save the steps from/to a JSON file.",
-                wraplength = 500,
+        ToolTip(self.info_label, self.tooltips.get("cycle_sequence_editor", ""), wraplength = 500,
                 text_alignment = "left")
 
         self.entry_popup = None

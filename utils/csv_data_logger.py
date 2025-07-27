@@ -5,7 +5,7 @@ import traceback
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
 from utils.file_utils import CsvLogger
-from utils.constants import Logger, Other
+from utils.constants import Logger
 
 
 class CSVDataLogger:
@@ -19,6 +19,7 @@ class CSVDataLogger:
         self.logger = logger
         self.csv_logger = CsvLogger()
         self.executor = None
+        self.max_queue_size = 100
 
         self.reset()
 
@@ -30,6 +31,9 @@ class CSVDataLogger:
 
     def set_first_row(self, first_row):
         self.first_row = first_row
+
+    def set_max_queue_size(self, value):
+        self.max_queue_size = value
 
     def reset(self):
         self.data_queue = queue.Queue()
@@ -69,7 +73,7 @@ class CSVDataLogger:
 
     def _accumulate_and_write_csv_log(self, data):
         try:
-            if self.data_queue.qsize() > Other.MAX_QUEUE_SIZE:
+            if self.data_queue.qsize() > self.max_queue_size:
                 self.logger(Logger.WARNING, "Queue backlog detected during measurement logging!")
 
             self.csv_logger.write_row(list(data))

@@ -2,6 +2,8 @@ import tkinter as tk
 
 
 class ToolTip:
+    show_tooltip = True
+
     def __init__(self, widget, text, wraplength = 200, text_alignment = "center", delay = 500):
         self.widget = widget
         self.text = text
@@ -30,6 +32,9 @@ class ToolTip:
             self.tip_window.geometry(f"+{x}+{y}")
 
     def _show_tip(self):
+        if not ToolTip.show_tooltip:
+            return
+
         if self.tip_window or not self.text:
             return
 

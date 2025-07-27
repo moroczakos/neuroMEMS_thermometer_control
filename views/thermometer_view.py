@@ -4,10 +4,12 @@ import queue
 # ─── Third-Party Libraries ───────────────────────────────────────────────────
 import tkinter as tk
 import traceback
-from tkinter import ttk, messagebox
+from tkinter import ttk
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
+from base_classes.view_base import ViewBase
 from instruments.instrument_manager import InstrumentManager
+from utils.ui_utils.entry_with_label import EntryWithLabel
 from utils.ui_utils.live_plotter import LiveDataPlotter
 from utils.logger_manager import safe_execute
 from utils.settings_utils import load_probe_data
@@ -18,24 +20,20 @@ from utils.other_utils import (
     save_setting_from_widget,
 )
 from utils.plot_utils import create_dual_axis_plot
-from utils.ui_utils.logger_panel import LoggingPanel
 from utils.constants import Keys, EntryConfig, States, Logger, UI
+from utils.ui_utils.tooltip import ToolTip
 
 
-class ThermometerView:
+class ThermometerView(ViewBase):
     def __init__(self, root, probe_path, setting_manager, logger, profile):
-        self.root = tk.Frame(root)
-        self.root.pack(fill = 'both', expand = True)
+        ViewBase.__init__(self, root, setting_manager, logger)
+
         self.controller = None
         self.live_data_plotter = None
 
         # Settings
         self.probe_path = probe_path
-        self.setting_manager = setting_manager
         self.profile = profile
-
-        # Logger
-        self.logger = logger
 
         # Instrument
         self.instrument_manager = InstrumentManager()
@@ -50,6 +48,7 @@ class ThermometerView:
         self.TCR = tk.DoubleVar()
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.INTERVAL))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting(Keys.AVG_COUNT))
+        self.max_points_to_plot = self.setting_manager.load_setting(UI.MAX_POINTS_TO_PLOT)
 
         # Data
         self.timestamps = []
@@ -61,7 +60,7 @@ class ThermometerView:
 
         self._create_widgets()
         self._setup_plot()
-        self._setup_logger_panel()
+        self.setup_logger_panel()
         self._load_visa_resources()
         self._update_probe_values()
 
@@ -70,6 +69,7 @@ class ThermometerView:
 
         self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.scrollbar,
                                                  self.average_count.get(), self.log)
+        self.live_data_plotter.set_max_points_to_plot(self.max_points_to_plot)
 
     def get_visa_resource(self):
         return self.visa_resource.get()
@@ -92,13 +92,6 @@ class ThermometerView:
     def set_stop_button_command(self, command):
         self.stop_button.config(command = command)
 
-    def _setup_logger_panel(self):
-        """Insert the reusable LoggingPanel into the GUI and link it to the logger."""
-        self.logging_panel = LoggingPanel(self.root, logger = self.logger)
-        self.logging_panel.pack(fill = 'both', padx = 10, pady = (5, 10), expand = False)
-
-        self.log(Logger.INFO, "Application started and UI initialized.")
-
     def _create_widgets(self):
         self.frame = ttk.Frame(self.root, padding = 10)
         self.frame.pack(fill = tk.X)
@@ -114,11 +107,15 @@ class ThermometerView:
         self.visa_dropdown = ttk.Combobox(self.frame, textvariable = self.visa_resource, width = 40)
         self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
-        self.refresh_button = ttk.Button(self.frame, text = "Refresh", command = self._load_visa_resources)
+        self.refresh_button = ttk.Button(self.frame, text = "Ⓘ Refresh", command = self._load_visa_resources)
         self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
+        ToolTip(self.refresh_button, self.tooltips.get("refresh_button", ""))
 
     def _create_thermoprobe_selector(self):
-        ttk.Label(self.frame, text = "Thermoprobe:").grid(row = 1, column = 0)
+        thermoprobe_label = ttk.Label(self.frame, text = "Ⓘ Thermoprobe:")
+        thermoprobe_label.grid(row = 1, column = 0)
+        ToolTip(thermoprobe_label, self.tooltips.get("thermoprobe_label", ""))
+
         self.probe_dropdown = ttk.Combobox(self.frame, textvariable = self.selected_probe,
                                            values = list(self.probes.keys()),
                                            width = 11)
@@ -132,15 +129,34 @@ class ThermometerView:
         ttk.Entry(self.frame, textvariable = self.TCR, width = 10, state = States.READONLY).grid(row = 1, column = 5)
 
     def _create_measurement_settings_section(self):
-        self._entry_with_label(2, 0, "Interval (s):", self.interval, self._save_entry_value, Keys.INTERVAL)
-        self._entry_with_label(2, 2, "Average count:", self.average_count, self._save_entry_value, Keys.AVG_COUNT,
-                               self._update_average_count)
+        self.interval_ewl = EntryWithLabel(self.frame,
+                                           labeltext = "Ⓘ Interval (s):",
+                                           entrytextvariable = self.interval,
+                                           entrywidth = EntryConfig.WIDTH,
+                                           entryjustify = EntryConfig.JUSTIFY,
+                                           savecommandkey = Keys.INTERVAL,
+                                           saveentrytextvariablecommand = self._save_entry_value)
+        self.interval_ewl.grid(row = 2, column = 0, columnspan = 2)
+        ToolTip(self.interval_ewl.get_label(), self.tooltips.get("interval_label", ""))
 
-        self.start_button = ttk.Button(self.frame, text = "Start")
+        average_ewl = EntryWithLabel(self.frame,
+                                     labeltext = "Ⓘ Average count:",
+                                     entrytextvariable = self.average_count,
+                                     entrywidth = EntryConfig.WIDTH,
+                                     entryjustify = EntryConfig.JUSTIFY,
+                                     savecommandkey = Keys.AVG_COUNT,
+                                     saveentrytextvariablecommand = self._save_entry_value,
+                                     command = self._update_average_count)
+        average_ewl.grid(row = 2, column = 2, columnspan = 2)
+        ToolTip(average_ewl.get_label(), self.tooltips.get("average_label", ""))
+
+        self.start_button = ttk.Button(self.frame, text = "Ⓘ Start")
         self.start_button.grid(row = 2, column = 4)
+        ToolTip(self.start_button, self.tooltips.get("thermometer_start_btn", ""))
 
-        self.stop_button = ttk.Button(self.frame, text = "Stop", state = States.DISABLED)
+        self.stop_button = ttk.Button(self.frame, text = "Ⓘ Stop", state = States.DISABLED)
         self.stop_button.grid(row = 2, column = 5)
+        ToolTip(self.stop_button, self.tooltips.get("thermometer_stop_btn", ""))
 
     def _create_live_display_section(self):
         ttk.Label(self.frame, text = f"Live {self.profile.y1_label}:").grid(row = 3, column = 0, sticky = 'e')
@@ -150,27 +166,13 @@ class ThermometerView:
                                                                                            sticky = 'w')
 
     def _create_preview_section(self):
-        self.preview_start_button = ttk.Button(self.frame, text = "Start Preview")
+        self.preview_start_button = ttk.Button(self.frame, text = "Ⓘ Start Preview")
         self.preview_start_button.grid(row = 3, column = 4)
-        self.preview_stop_button = ttk.Button(self.frame, text = "Stop Preview",
-                                              state = States.DISABLED)
+        ToolTip(self.preview_start_button, self.tooltips.get("preview_start_button", ""))
+
+        self.preview_stop_button = ttk.Button(self.frame, text = "Ⓘ Stop Preview", state = States.DISABLED)
         self.preview_stop_button.grid(row = 3, column = 5)
-
-    def _entry_with_label(self, row, col, label, variable, trace_callback = None, key = None, command = None):
-        ttk.Label(self.frame, text = label).grid(row = row, column = col)
-        entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH,
-                          justify = EntryConfig.JUSTIFY)
-
-        def all_trace_callback(k, v):
-            trace_callback(k, v)
-
-            if command:
-                command()
-
-        entry.grid(row = row, column = col + 1)
-        if trace_callback and key:
-            variable.trace_add("write", lambda *args: all_trace_callback(key, variable))
-        return entry
+        ToolTip(self.preview_stop_button, self.tooltips.get("preview_stop_button", ""))
 
     @safe_execute
     def _load_visa_resources(self):
@@ -199,13 +201,13 @@ class ThermometerView:
             view_offset = self.live_data_plotter.get_view_offset()
 
             if args[0] == 'scroll':
-                delta = int(args[1]) * UI.MAX_POINTS
+                delta = int(args[1]) * self.max_points_to_plot
                 self.live_data_plotter.set_view_offset(min(max_offset, max(view_offset - delta, 0)))
             elif args[0] == 'moveto':
                 # Slider drag
                 fraction = float(args[1])
-                view_offset = int((1 - fraction) * (max_offset + UI.MAX_POINTS))
-                self.live_data_plotter.set_view_offset(max(0, min(view_offset - UI.MAX_POINTS, max_offset)))
+                view_offset = int((1 - fraction) * (max_offset + self.max_points_to_plot))
+                self.live_data_plotter.set_view_offset(max(0, min(view_offset - self.max_points_to_plot, max_offset)))
 
             if not self.running:
                 self.live_data_plotter.update_plot()
@@ -262,7 +264,8 @@ class ThermometerView:
         widgets = [
             self.visa_dropdown,
             self.refresh_button,
-            self.probe_dropdown
+            self.probe_dropdown,
+            self.interval_ewl.get_entry()
         ]
 
         for widget in widgets:
@@ -321,12 +324,3 @@ class ThermometerView:
                     resistance,
                     temperature
                 )
-
-    def log(self, message_type, message):
-        if message_type == Logger.INFO:
-            self.root.after(0, lambda: self.logger.info(message))
-        elif message_type == Logger.WARNING:
-            self.root.after(0, lambda: self.logger.warning(message))
-        else:
-            self.root.after(0, lambda: self.logger.error(message))
-            messagebox.showerror("Error", message)

@@ -37,8 +37,7 @@ class Logger(Enum):
 
 
 class UI:
-    MAX_POINTS = 1000
-
-
-class Other:
-    MAX_QUEUE_SIZE = 100
+    TOOLTIPS = "tooltips"
+    SHOW_TOOLTIP = "show_tooltip"
+    MAX_QUEUE_SIZE = "max_queue_size"
+    MAX_POINTS_TO_PLOT = "max_points_to_plot"

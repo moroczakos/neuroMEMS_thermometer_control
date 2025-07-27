@@ -1,12 +1,14 @@
 {
+    "max_queue_size": 100,
+    "max_points_to_plot": 300,
     "probe": "TE6",
-    "interval": 0.02,
+    "interval": 0.01,
     "avg_count": 3,
     "current_high": 0.5,
     "current_low": 0.001,
     "duration_high": 2,
     "duration_low": 4,
-    "cycles": 2,
+    "cycles": 5,
     "device_settings": {
         "Current range (A)": 0.5,
         "Voltage limit (V)": 25.0
@@ -29,5 +31,6 @@
             "duration": 4.0
         }
     ],
-    "tooltips": "tooltip.json"
+    "tooltips": "tooltip.json",
+    "show_tooltip": "True"
 }

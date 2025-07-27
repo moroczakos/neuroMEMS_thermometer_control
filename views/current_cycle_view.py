@@ -10,10 +10,10 @@ from tkinter import ttk, messagebox, filedialog
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from base_classes.view_base import ViewBase
 # ─── Local Modules ───────────────────────────────────────────────────────────
+from base_classes.view_base import ViewBase
 from instruments.instrument_manager import InstrumentManager
-from utils.settings_utils import load_tooltip_data
+from utils.ui_utils.entry_with_label import EntryWithLabel
 from utils.ui_utils.live_plotter import LiveDataPlotter
 from utils.logger_manager import safe_execute
 from utils.other_utils import (
@@ -51,6 +51,7 @@ class CurrentCycleView(ViewBase):
         self.other_settings_value = tk.DoubleVar()
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.INTERVAL))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting(Keys.AVG_COUNT))
+        self.max_points_to_plot = self.setting_manager.load_setting(UI.MAX_POINTS_TO_PLOT)
 
         # Data
         self.timestamps = []
@@ -62,8 +63,6 @@ class CurrentCycleView(ViewBase):
         self.cycle_sequence_waveform_label = tk.StringVar(
             value = f"Selected cycle waveform: {self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE_FILE)} (click to enlarge)")
 
-        self.tooltips = load_tooltip_data(
-            os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.TOOLTIPS)))
         self._create_widgets()
         self._setup_plot()
         self.setup_logger_panel()
@@ -72,6 +71,7 @@ class CurrentCycleView(ViewBase):
 
         self.live_data_plotter = LiveDataPlotter(self.canvas, self.axes, self.lines, self.scrollbar,
                                                  self.average_count.get(), self.log)
+        self.live_data_plotter.set_max_points_to_plot(self.max_points_to_plot)
 
     def get_visa_resource(self):
         return self.visa_resource.get()
@@ -101,8 +101,9 @@ class CurrentCycleView(ViewBase):
         self.visa_dropdown = ttk.Combobox(self.frame, textvariable = self.visa_resource, width = 40)
         self.visa_dropdown.grid(row = 0, column = 1, columnspan = 3)
 
-        self.refresh_button = ttk.Button(self.frame, text = "Refresh", command = self._load_visa_resources)
+        self.refresh_button = ttk.Button(self.frame, text = "Ⓘ Refresh", command = self._load_visa_resources)
         self.refresh_button.grid(row = 0, column = 4, padx = 5, pady = 10)
+        ToolTip(self.refresh_button, self.tooltips.get("refresh_button", ""))
 
     def _create_current_settings_section(self):
         row = 1
@@ -110,7 +111,7 @@ class CurrentCycleView(ViewBase):
             .grid(row = row, column = 0, columnspan = 9)
 
         row += 1
-        self.edit_cycle_button = ttk.Button(self.frame, text = "Cycle waveform editor",
+        self.edit_cycle_button = ttk.Button(self.frame, text = "Ⓘ Cycle waveform editor",
                                             command = self._edit_cycle_setting)
         self.edit_cycle_button.grid(row = row, column = 0, columnspan = 2)
         ToolTip(self.edit_cycle_button, self.tooltips.get("edit_cycle_button", ""))
@@ -119,14 +120,23 @@ class CurrentCycleView(ViewBase):
                   justify = 'center').grid(row = row, column = 2, columnspan = 4)
 
         row += 1
-        self.change_cycle_setting_button = ttk.Button(self.frame, text = "Change cycle waveform file",
+        self.change_cycle_setting_button = ttk.Button(self.frame, text = "Ⓘ Change cycle waveform file",
                                                       command = self._change_cycle_setting_file)
         self.change_cycle_setting_button.grid(row = row, column = 0, columnspan = 2)
         ToolTip(self.change_cycle_setting_button, self.tooltips.get("change_cycle_setting_button", ""))
 
         row += 2
-        self.cycles_entry = self._entry_with_label(row, 0, "Cycles:", self.cycles, self._save_entry_value,
-                                                   Keys.CYCLES, command = self._plot_waveform)
+
+        self.cycle_ewl = EntryWithLabel(self.frame,
+                                        labeltext = "Ⓘ Cycles:",
+                                        entrytextvariable = self.cycles,
+                                        entrywidth = EntryConfig.WIDTH,
+                                        entryjustify = EntryConfig.JUSTIFY,
+                                        savecommandkey = Keys.CYCLES,
+                                        saveentrytextvariablecommand = self._save_entry_value,
+                                        command = self._plot_waveform)
+        self.cycle_ewl.grid(row = row, column = 0, columnspan = 2)
+        ToolTip(self.cycle_ewl.get_label(), self.tooltips.get("cycle_label", ""))
 
     def _create_cycle_sequence_plotter(self):
         row = 3
@@ -171,7 +181,8 @@ class CurrentCycleView(ViewBase):
         self.other_settings_entry.grid(row = row, column = 8)
 
         row += 1
-        self.save_other_button = ttk.Button(self.frame, text = Labels.SAVE, command = self._save_other_setting)
+        self.save_other_button = ttk.Button(self.frame, text = "Save other settings",
+                                            command = self._save_other_setting)
         self.save_other_button.grid(row = row, column = 6, columnspan = 3, padx = 5)
 
     def _create_measurement_settings_section(self):
@@ -180,15 +191,35 @@ class CurrentCycleView(ViewBase):
             .grid(row = row, column = 0, columnspan = 9)
 
         row += 1
-        self._entry_with_label(row, 0, "Interval (s):", self.interval, self._save_entry_value, Keys.INTERVAL)
-        self._entry_with_label(row, 2, "Average count:", self.average_count, self._save_entry_value, Keys.AVG_COUNT,
-                               self._update_average_count)
 
-        self.start_button = ttk.Button(self.frame, text = "Start")
+        self.interval_ewl = EntryWithLabel(self.frame,
+                                           labeltext = "Ⓘ Interval (s):",
+                                           entrytextvariable = self.interval,
+                                           entrywidth = EntryConfig.WIDTH,
+                                           entryjustify = EntryConfig.JUSTIFY,
+                                           savecommandkey = Keys.INTERVAL,
+                                           saveentrytextvariablecommand = self._save_entry_value)
+        self.interval_ewl.grid(row = row, column = 0, columnspan = 2)
+        ToolTip(self.interval_ewl.get_label(), self.tooltips.get("interval_label", ""))
+
+        average_ewl = EntryWithLabel(self.frame,
+                                     labeltext = "Ⓘ Average count:",
+                                     entrytextvariable = self.average_count,
+                                     entrywidth = EntryConfig.WIDTH,
+                                     entryjustify = EntryConfig.JUSTIFY,
+                                     savecommandkey = Keys.AVG_COUNT,
+                                     saveentrytextvariablecommand = self._save_entry_value,
+                                     command = self._update_average_count)
+        average_ewl.grid(row = row, column = 2, columnspan = 2)
+        ToolTip(average_ewl.get_label(), self.tooltips.get("average_label", ""))
+
+        self.start_button = ttk.Button(self.frame, text = "Ⓘ Start")
         self.start_button.grid(row = row, column = 4)
+        ToolTip(self.start_button, self.tooltips.get("current_start_btn", ""))
 
-        self.stop_button = ttk.Button(self.frame, text = "Stop", state = States.DISABLED)
+        self.stop_button = ttk.Button(self.frame, text = "Ⓘ Stop", state = States.DISABLED)
         self.stop_button.grid(row = row, column = 5)
+        ToolTip(self.stop_button, self.tooltips.get("current_stop_btn", ""))
 
     def _create_live_display_section(self):
         row = 8
@@ -199,22 +230,6 @@ class CurrentCycleView(ViewBase):
         ttk.Label(self.frame, text = "Live voltage (V):").grid(row = row, column = 2, sticky = 'e')
         ttk.Label(self.frame, textvariable = self.voltage_y2, foreground = 'black').grid(row = row, column = 3,
                                                                                          sticky = 'w')
-
-    def _entry_with_label(self, row, col, label, variable, trace_callback = None, key = None, command = None):
-        ttk.Label(self.frame, text = label).grid(row = row, column = col)
-        entry = ttk.Entry(self.frame, textvariable = variable, width = EntryConfig.WIDTH,
-                          justify = EntryConfig.JUSTIFY)
-
-        def all_trace_callback(k, v):
-            trace_callback(k, v)
-
-            if command:
-                command()
-
-        entry.grid(row = row, column = col + 1)
-        if trace_callback and key:
-            variable.trace_add("write", lambda *args: all_trace_callback(key, variable))
-        return entry
 
     def _generate_waveform(self, sequence, n_cycles):
         def append_step(time_points, current_points, current_time, step):
@@ -397,13 +412,13 @@ class CurrentCycleView(ViewBase):
             view_offset = self.live_data_plotter.get_view_offset()
 
             if args[0] == 'scroll':
-                delta = int(args[1]) * UI.MAX_POINTS
+                delta = int(args[1]) * self.max_points_to_plot
                 self.live_data_plotter.set_view_offset(min(max_offset, max(view_offset - delta, 0)))
             elif args[0] == 'moveto':
                 # Slider drag
                 fraction = float(args[1])
-                view_offset = int((1 - fraction) * (max_offset + UI.MAX_POINTS))
-                self.live_data_plotter.set_view_offset(max(0, min(view_offset - UI.MAX_POINTS, max_offset)))
+                view_offset = int((1 - fraction) * (max_offset + self.max_points_to_plot))
+                self.live_data_plotter.set_view_offset(max(0, min(view_offset - self.max_points_to_plot, max_offset)))
 
             if not self.running:
                 self.live_data_plotter.update_plot()
@@ -428,10 +443,11 @@ class CurrentCycleView(ViewBase):
             self.visa_dropdown,
             self.refresh_button,
             self.change_cycle_setting_button,
-            self.cycles_entry,
+            self.cycle_ewl.get_entry(),
             self.other_settings_dropdown,
             self.other_settings_entry,
             self.save_other_button,
+            self.interval_ewl.get_entry()
         ]
 
         for widget in widgets:

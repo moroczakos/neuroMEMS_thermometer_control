@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from utils.csv_data_logger import CSVDataLogger
-from utils.constants import Keys, Logger
+from utils.constants import Keys, Logger, UI
 
 
 class ThermometerModel:
@@ -44,6 +44,9 @@ class ThermometerModel:
         self.observers = []
         self.csv_data_logger = CSVDataLogger(self._notify_logger)
         self.csv_raw_data_logger = CSVDataLogger(self._notify_logger)
+
+        self.csv_data_logger.set_max_queue_size(self.setting_manager.load_setting(UI.MAX_QUEUE_SIZE))
+        self.csv_raw_data_logger.set_max_queue_size(self.setting_manager.load_setting(UI.MAX_QUEUE_SIZE))
 
     def set_R0_TCR(self, data):
         self.R0 = data[0]

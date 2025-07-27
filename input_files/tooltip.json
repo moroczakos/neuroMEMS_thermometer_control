@@ -1,5 +1,19 @@
 {
     "edit_cycle_button": "Create, edit or save a waveform. It does not change the currently loaded waveform.",
     "change_cycle_setting_button": "Change the waveform of the cycle sequence. The loaded sequence is plotted.",
-    "preview_canvas_widget": "Shows the whole current cycle sequence: the waveform is repeated according to the number of cycles.\n Click figure to enlarge."
+    "preview_canvas_widget": "Shows the whole current cycle sequence: the waveform is repeated according to the number of cycles.\n Click figure to enlarge.",
+    "cycle_sequence_editor": "Description of the Cycle Sequence Editor.\n \nThis editor is used to determine the shape of the current source. \n - The consecutive steps determine one cycle. One step contains the duration of the set current. These steps within a cycle are repeated n times when the 'Current source app' is started. \n - The number of cycles is determined by the 'Cycles' field of the 'Current source app'. \n - A preview is also shown in the app. \n - The offset is used once before the first cycle. \n - Press Enter after inserting a value to override the previous value. \n - It is possible to load/save the steps from/to a JSON file.",
+    "interval_label": "Time difference between two measurements. Indirectly determines the sampling rate.",
+    "average_label": "The number of measurement points used for plotting a single point. The larger the value, the smoother the plotted graph.",
+    "current_start_btn": "Start the 'Current source app': start the cycle sequence and if the device supports, the voltage measurement. The results are plotted in the 'Live Current/Voltage/Resistance' graph. It does not influence, not start the 'Thermometer app'. When the given cycle sequence finishes, the app stops.",
+    "current_stop_btn": "Stop the 'Current source app': stop the cycle sequence and if the device supports, the voltage measurement. It does not influence, not stop the running 'Thermometer app'.",
+    "cycle_label": "The number of cycles, that determines the repetition of the selected waveform.",
+    "refresh_button": "Reload VISA resources. Use it when you plug the device to the computer after starting this application.",
+    "thermoprobe_label": "Select the used thermoprobe. Its parameters determine the measured temperature. The parameters of the thermoprobes can be editted in 'input_files/thermoprobes.csv'.",
+    "thermometer_start_btn": "Start the 'Thermometer app': start the resistance measurement and the temperature measurement based on the selected probe. The results are plotted in the 'Live Resistance/Temperature' graph. It does not influence, not start the 'Current source app'.",
+    "thermometer_stop_btn": "Stop the 'Thermometer app': stop the resistance measurement and the temperature measurement. It does not influence, not stop the running 'Current source app'.",
+    "preview_start_button": "Start showing the current resistance and temperature based on the selected probe. It does not plot, not save the measurement.",
+    "preview_stop_button": "Start showing the current resistance and temperature.",
+    "station_start_button": "Start the 'Current source app' and the 'Thermometer app' at the same time. When the given cycle sequence of the 'Current source app' finishes, both of the apps stop.",
+    "station_stop_button": "Stop the 'Current source app' and the 'Thermometer app' at the same time."
 }

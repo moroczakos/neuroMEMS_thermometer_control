@@ -1,17 +1,28 @@
+import os
 import sys
 import tkinter as tk
 from tkinter import ttk
 from apps.thermometer_main import ThermometerMain
 from apps.current_cycle_main import CurrentCycleMain
-from utils.constants import EntryConfig, States
+from base_classes.main_base import MainBase
+from utils.constants import EntryConfig, States, UI
+from utils.settings_utils import load_tooltip_data
+from utils.ui_utils.tooltip import ToolTip
 
 
-class TemperatureMeasurementStationApp:
+class TemperatureMeasurementStationApp(MainBase):
     def __init__(self, root):
+        MainBase.__init__(self)
+
         self.root = root
         self.is_current_cycle_app_running = False
         self.is_thermometer_app_running = False
         self.is_combined = False
+
+        self.tooltips = load_tooltip_data(
+            os.path.join(self.input_file_path, self.setting_manager.load_setting(UI.TOOLTIPS)))
+        if self.setting_manager.load_setting(UI.SHOW_TOOLTIP) == "False":
+            ToolTip.show_tooltip = False
 
         # Create container frames
         self.left_frame = ttk.Frame(root, width = 400)
@@ -36,12 +47,14 @@ class TemperatureMeasurementStationApp:
         # Create the start/stop buttons inside the button frame
         ttk.Label(self.button_frame, text = "Control both apps", justify = EntryConfig.JUSTIFY,
                   font = ("Arial", 18)).pack()
-        self.start_button = ttk.Button(self.button_frame, text = "Start", command = self.start_apps)
+        self.start_button = ttk.Button(self.button_frame, text = "Ⓘ Start", command = self.start_apps)
         self.start_button.pack(side = 'left', padx = 10)
+        ToolTip(self.start_button, self.tooltips.get("station_start_button", ""))
 
-        self.stop_button = ttk.Button(self.button_frame, text = "Stop", command = self.stop_apps)
+        self.stop_button = ttk.Button(self.button_frame, text = "Ⓘ Stop", command = self.stop_apps)
         self.stop_button.pack(side = 'left', padx = 10)
         self.stop_button.config(state = "disabled")
+        ToolTip(self.stop_button, self.tooltips.get("station_stop_button", ""))
 
         self.cycle_app.controller.attach_to_model(self)
         self.thermometer_app.controller.attach_to_model(self)

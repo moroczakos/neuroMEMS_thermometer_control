@@ -3,8 +3,9 @@ import tkinter as tk
 from tkinter import messagebox
 
 from utils.other_utils import find_project_root
+from utils.settings_utils import load_tooltip_data
 from utils.ui_utils.logger_panel import LoggingPanel
-from utils.constants import Logger
+from utils.constants import Logger, UI
 
 
 class ViewBase:
@@ -16,6 +17,8 @@ class ViewBase:
         self.setting_manager = setting_manager
         self.project_root = ".."  # find_project_root()
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
+        self.tooltips = load_tooltip_data(
+            os.path.join(self.input_file_path, self.setting_manager.load_setting(UI.TOOLTIPS)))
 
     def setup_logger_panel(self):
         """Insert the reusable LoggingPanel into the GUI and link it to the logger."""

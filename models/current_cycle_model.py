@@ -8,7 +8,7 @@ from threading import Event
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from utils.csv_data_logger import CSVDataLogger
-from utils.constants import Keys, Logger
+from utils.constants import Keys, Logger, UI
 
 
 class CurrentCycleModel:
@@ -43,6 +43,8 @@ class CurrentCycleModel:
         self.stop_event = Event()
         self.observers = []
         self.csv_data_logger = CSVDataLogger(self._notify_logger)
+
+        self.csv_data_logger.set_max_queue_size(self.setting_manager.load_setting(UI.MAX_QUEUE_SIZE))
 
     def attach(self, observer):
         self.observers.append(observer)
