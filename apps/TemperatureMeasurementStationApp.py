@@ -113,7 +113,6 @@ class TemperatureMeasurementStationApp(MainBase):
         if self.thermometer_app.can_close_app() and self.cycle_app.can_close_app():
             self.thermometer_app.close_app()
             self.cycle_app.close_app()
-            self.root.destroy()
             return True
 
         return False

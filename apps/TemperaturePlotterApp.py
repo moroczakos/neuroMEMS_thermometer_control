@@ -9,6 +9,7 @@ from tkinter import messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from base_classes.main_base import MainBase
 from base_classes.view_base import ViewBase
+from utils.ui_utils.tooltip import ToolTip
 
 
 class TemperaturePlotterApp(MainBase, ViewBase):
@@ -53,7 +54,7 @@ class TemperaturePlotterApp(MainBase, ViewBase):
         checkbox_frame.pack(pady = 5)
 
         Label(checkbox_frame, text = "Show:").pack(side = "left", padx = (0, 10))
-        text_width = 10
+        text_width = 15
 
         def get_checkbox_state(state):
             if state.get() == 1:
@@ -61,33 +62,54 @@ class TemperaturePlotterApp(MainBase, ViewBase):
             else:
                 return "unchecked"
 
-        Checkbutton(checkbox_frame, text = "Raw Temp", variable = self.show_temp,
+        raw_temp = Checkbutton(checkbox_frame, text = "Ⓘ Raw Temp", variable = self.show_temp,
                     command = lambda: self.update_plot(f"Raw Temp checkbox {get_checkbox_state(self.show_temp)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Compensated", variable = self.show_compensated,
+                    width = text_width)
+        raw_temp.pack(side = "left")
+        ToolTip(raw_temp, self.tooltips.get("raw_temp", ""))
+
+        compensated = Checkbutton(checkbox_frame, text = "Ⓘ Compensated", variable = self.show_compensated,
                     command = lambda: self.update_plot(
                         f"Compensated checkbox {get_checkbox_state(self.show_compensated)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Drift", variable = self.show_drift,
+                    width = text_width)
+        compensated.pack(side = "left")
+        ToolTip(compensated, self.tooltips.get("compensated", ""))
+
+        drift = Checkbutton(checkbox_frame, text = "Ⓘ Drift", variable = self.show_drift,
                     command = lambda: self.update_plot(
                         f"Drift checkbox {get_checkbox_state(self.show_drift)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Smoothed", variable = self.show_smoothed,
+                    width = text_width)
+        drift.pack(side = "left")
+        ToolTip(drift, self.tooltips.get("drift", ""))
+
+        smoothed = Checkbutton(checkbox_frame, text = "Ⓘ Smoothed", variable = self.show_smoothed,
                     command = lambda: self.update_plot(
                         f"Smoothed checkbox {get_checkbox_state(self.show_smoothed)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Transitions", variable = self.show_transitions,
+                    width = text_width)
+        smoothed.pack(side = "left")
+        ToolTip(smoothed, self.tooltips.get("smoothed", ""))
+
+        transitions = Checkbutton(checkbox_frame, text = "Ⓘ Transitions", variable = self.show_transitions,
                     command = lambda: self.update_plot(
                         f"Transitions checkbox {get_checkbox_state(self.show_transitions)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Rise/Fall Times", variable = self.show_rise_fall_times,
+                    width = text_width)
+        transitions.pack(side = "left")
+        ToolTip(transitions, self.tooltips.get("transitions", ""))
+
+        rise_fall_times = Checkbutton(checkbox_frame, text = "Ⓘ Rise/Fall Times", variable = self.show_rise_fall_times,
                     command = lambda: self.update_plot(
                         f"Rise/Fall Times checkbox {get_checkbox_state(self.show_rise_fall_times)}."),
-                    width = text_width).pack(side = "left")
-        Checkbutton(checkbox_frame, text = "Title", variable = self.show_title,
+                    width = text_width)
+        rise_fall_times.pack(side = "left")
+        ToolTip(rise_fall_times, self.tooltips.get("rise_fall_times", ""))
+
+        title = Checkbutton(checkbox_frame, text = "Ⓘ Title", variable = self.show_title,
                     command = lambda: self.update_plot(
                         f"Title checkbox {get_checkbox_state(self.show_title)}."),
-                    width = text_width).pack(side = "left")
+                    width = text_width)
+        title.pack(side = "left")
+        ToolTip(title, self.tooltips.get("title", ""))
+
         Checkbutton(checkbox_frame, text = "Legend", variable = self.show_legend,
                     command = lambda: self.update_plot(
                         f"Legend checkbox {get_checkbox_state(self.show_legend)}."),
@@ -97,19 +119,27 @@ class TemperaturePlotterApp(MainBase, ViewBase):
         controls_frame.pack(pady = 10)
 
         # Polynomial Degree Controls (Spinbox)
-        Label(controls_frame, text = "Polynomial Degree:").pack(side = "left", padx = (0, 5))
+        polynomial_degree = Label(controls_frame, text = "Ⓘ Polynomial Degree:")
+        polynomial_degree.pack(side = "left", padx = (0, 5))
+        ToolTip(polynomial_degree, self.tooltips.get("polynomial_degree", ""))
+
         Spinbox(controls_frame, from_ = 0, to = 5, textvariable = self.degree_var, width = 5).pack(side = "left",
                                                                                                    padx = (0, 20))
         self.degree_var.trace("w", lambda *args: self.update_plot(
             f"Polynomial Degree is {self.degree_var.get()}."))  # Update plot when value changes
 
         # Smoothing Window Controls (Entry)
-        Label(controls_frame, text = "Smoothing Window (data point):").pack(side = "left")
+        smoothing_window = Label(controls_frame, text = "Ⓘ Smoothing Window (data point):")
+        smoothing_window.pack(side = "left")
+        ToolTip(smoothing_window, self.tooltips.get("smoothing_window", ""))
+
         Entry(controls_frame, textvariable = self.smoothing_var, width = 5).pack(side = "left", padx = (0, 20))
         self.smoothing_var.trace("w", lambda *args: self.update_plot(
             f"Smoothing Window is {self.smoothing_var.get()}."))  # Update plot when value changes
 
-        Button(self.root, text = "Select File and Plot", command = self.select_file_and_plot).pack(pady = 20)
+        select_file_and_plot = Button(self.root, text = "Ⓘ Select File and Plot", command = self.select_file_and_plot)
+        select_file_and_plot.pack(pady = 20)
+        ToolTip(select_file_and_plot, self.tooltips.get("select_file_and_plot", ""), wraplength = 350)
 
     def select_file_and_plot(self):
         """Allow user to select a CSV file and plot the data."""

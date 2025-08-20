@@ -33,7 +33,6 @@ class CombinedApp:
         if self.app1.close_app():
             self.app2.close_app()
             self.app3.close_app()
-            self.root.destroy()
             return True
 
         return False

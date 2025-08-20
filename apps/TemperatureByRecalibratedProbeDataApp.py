@@ -9,6 +9,8 @@ from utils.settings_utils import load_probe_data
 import csv
 import traceback
 
+from utils.ui_utils.tooltip import ToolTip
+
 
 class TemperatureByRecalibratedProbeDataApp(MainBase, ViewBase):
     def __init__(self, root):
@@ -41,9 +43,14 @@ class TemperatureByRecalibratedProbeDataApp(MainBase, ViewBase):
         self.file_label = ttk.Label(frame, text = "No file selected.", width = 50)
         self.file_label.grid(row = 0, column = 0, columnspan = 4)
 
-        ttk.Button(frame, text = "Select File", command = self.select_file).grid(row = 0, column = 5)
+        select_file = ttk.Button(frame, text = "Ⓘ Select File", width = 15, command = self.select_file)
+        select_file.grid(row = 0, column = 5)
+        ToolTip(select_file, self.tooltips.get("select_file", ""))
 
-        ttk.Label(frame, text = "Thermoprobe:").grid(row = 1, column = 0)
+        thermoprobe_label = ttk.Label(frame, text = "Ⓘ Thermoprobe:")
+        thermoprobe_label.grid(row = 1, column = 0)
+        ToolTip(thermoprobe_label, self.tooltips.get("thermoprobe_label", ""))
+
         self.probe_dropdown = ttk.Combobox(frame, textvariable = self.selected_probe, values = list(self.probes.keys()),
                                            width = 11)
         self.probe_dropdown.grid(row = 1, column = 1)
@@ -55,10 +62,12 @@ class TemperatureByRecalibratedProbeDataApp(MainBase, ViewBase):
         ttk.Label(frame, text = "TCR:").grid(row = 1, column = 4)
         ttk.Entry(frame, textvariable = self.TCR, width = 10, state = "readonly").grid(row = 1, column = 5)
 
-        self.calibrate_button = ttk.Button(frame, text = "Save calibrated data",
+        self.calibrate_button = ttk.Button(frame, text = "Ⓘ Save calibrated data",
                                            command = self.convert_resistance_to_temperature)
         self.calibrate_button.grid(row = 2, column = 0)
         self.calibrate_button.config(state = "disabled")
+        ToolTip(self.calibrate_button, self.tooltips.get("calibrate_button", ""))
+
 
     def select_file(self):
         """Allow user to select a CSV file and plot the data."""

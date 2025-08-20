@@ -4,7 +4,7 @@ import traceback
 from tkinter import ttk, messagebox, filedialog
 import json
 
-from utils.constants import Keys
+from utils.constants import Keys, UI
 from utils.settings_utils import load_tooltip_data
 from utils.ui_utils.tooltip import ToolTip
 
@@ -16,13 +16,14 @@ class CycleSequenceEditor(tk.Tk):
         self.title("Cycle Sequence Editor")
         self.geometry("650x450")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.dirty = False  # tracks unsaved modifications
 
         # Settings
         self.project_root = ".."  # find_project_root()
         self.setting_manager = setting_manager
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
         self.tooltips = load_tooltip_data(
-            os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.TOOLTIPS)))
+            os.path.join(self.input_file_path, self.setting_manager.load_setting(UI.TOOLTIPS)))
         self.logger = logger
 
         # Frame to hold Treeview and scrollbar together
@@ -93,6 +94,7 @@ class CycleSequenceEditor(tk.Tk):
 
             self._renumber_steps()
             self.logger.info(f"Successfully loaded cycle data from {file_path}")
+            self.dirty = False
         except Exception as e:
             self.logger.error(f"Failed to load default JSON: {e}\n{traceback.format_exc()}")
             messagebox.showerror("Error", f"Failed to load default JSON:\n{e}")
@@ -110,6 +112,7 @@ class CycleSequenceEditor(tk.Tk):
         self.logger.info(f"Added step #{step_number}: current={current} A, duration={duration} s")
         self.tree.insert("", "end", values = (step_number, current, duration))
         self._renumber_steps()
+        self._mark_dirty()
 
     def _renumber_steps(self):
         children = self.tree.get_children()
@@ -129,6 +132,7 @@ class CycleSequenceEditor(tk.Tk):
                 f"Removed step: current: {self.tree.item(selected[0], "values")[0]} A for {self.tree.item(selected[0], "values")[1]} s")
             self.tree.delete(selected[0])
             self._renumber_steps()
+            self._mark_dirty()
         else:
             self.logger.warning("Select a step to remove.")
             messagebox.showwarning("Warning", "Select a step to remove.")
@@ -147,6 +151,7 @@ class CycleSequenceEditor(tk.Tk):
                 f"Move step #{self.tree.item(selected[0], "values")[0]} up: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s")
             self._swap_items(item, above)
             self._renumber_steps()
+            self._mark_dirty()
 
     def _move_down(self):
         selected = self.tree.selection()
@@ -162,6 +167,7 @@ class CycleSequenceEditor(tk.Tk):
                 f"Move step #{self.tree.item(selected[0], "values")[0]} down: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s")
             self._swap_items(item, below)
             self._renumber_steps()
+            self._mark_dirty()
 
     def _swap_items(self, item1, item2):
         vals1 = self.tree.item(item1, "values")
@@ -209,6 +215,7 @@ class CycleSequenceEditor(tk.Tk):
             messagebox.showinfo("Export Successful", f"Cycle sequence saved to {file_path}")
             self._keep_window_top()
             self.logger.info(f"Cycle sequence exported to {file_path}")
+            self.dirty = False
 
             return True
         except Exception as e:
@@ -250,6 +257,7 @@ class CycleSequenceEditor(tk.Tk):
             self._keep_window_top()
 
             self.logger.info(f"Imported {len(sequence)} steps from {file_path}")
+            self.dirty = False
 
         except Exception as e:
             self.logger.error(f"Import failed: {e}\n{traceback.format_exc()}")
@@ -289,6 +297,7 @@ class CycleSequenceEditor(tk.Tk):
         self.entry_popup.destroy()
         self.entry_popup = None
         self.logger.info(f"Edited cell at row '{row_id}', column '{column}': '{old_value}' -> '{new_value}'")
+        self._mark_dirty()
 
     def _cancel_edit(self):
         if self.entry_popup and self.entry_popup.winfo_exists():
@@ -298,6 +307,9 @@ class CycleSequenceEditor(tk.Tk):
                 pass
         self.entry_popup = None
 
+    def _mark_dirty(self):
+        self.dirty = True
+
     def _keep_window_top(self):
         self.lift()
         self.attributes('-topmost', True)
@@ -305,6 +317,11 @@ class CycleSequenceEditor(tk.Tk):
 
     def on_close(self):
         self._cancel_edit()
+
+        if not self.dirty:
+            self.logger.info("No changes to save; closing editor.")
+            self.destroy()
+            return
 
         result = messagebox.askyesnocancel(
             "Exit Confirmation",
