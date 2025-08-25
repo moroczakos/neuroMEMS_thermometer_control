@@ -2,7 +2,7 @@ import os
 
 from utils.logger_manager import LoggerManager
 from utils.settings_utils import SettingManager
-from utils.other_utils import find_project_root
+from utils.other_utils import find_project_root, add_current_date_to_folder_path
 
 
 class MainBase:
@@ -19,12 +19,19 @@ class MainBase:
         self.input_file_path = os.path.join(
             self.project_root, setting_manager.load_setting("input_files")
         )
-        self.output_base_file_path = os.path.join(
-            self.project_root, setting_manager.load_setting("output_files")
-        )
-        self.log_file_path = os.path.join(
+
+        selected_output_folder = setting_manager.load_setting("selected_output_folder")
+        if os.path.isdir(selected_output_folder):
+            self.output_base_file_path = selected_output_folder
+        else:
+            self.output_base_file_path = os.path.join(
+                self.project_root, setting_manager.load_setting("output_files")
+            )
+        self.output_base_file_path = add_current_date_to_folder_path(self.output_base_file_path)
+
+        self.log_file_path = add_current_date_to_folder_path(os.path.join(
             self.project_root, setting_manager.load_setting("log_files")
-        )
+        ))
 
         return setting_manager
 

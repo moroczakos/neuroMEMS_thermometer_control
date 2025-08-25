@@ -1,6 +1,8 @@
+import os
 import threading
 import tkinter as tk
 import traceback
+from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
 from utils.ui_utils.loading_popup import LoadingPopup
@@ -13,7 +15,7 @@ def get_widget_value(variable):
         return None
 
 
-def save_setting_from_widget(setting_manager, name, widget, logger=None):
+def save_setting_from_widget(setting_manager, name, widget, logger = None):
     try:
         value = get_widget_value(widget)
         if value is not None:
@@ -25,7 +27,8 @@ def save_setting_from_widget(setting_manager, name, widget, logger=None):
             logger.warning(f"Failed to save setting '{name}': {e}\n{traceback.format_exc()}")
 
 
-def load_visa_resources_util(instrument_manager, only_tcpip=False, logger=None, include_mock=True, mock_resources=None):
+def load_visa_resources_util(instrument_manager, only_tcpip = False, logger = None, include_mock = True,
+                             mock_resources = None):
     resources = instrument_manager.list_resources(only_tcpip = only_tcpip)
     if include_mock and getattr(instrument_manager, 'allow_mock', only_tcpip):
         resources = mock_resources + tuple(resources)
@@ -34,7 +37,7 @@ def load_visa_resources_util(instrument_manager, only_tcpip=False, logger=None, 
     return resources
 
 
-def connect_with_popup(root, visa_address, logger, connect_func, timeout=10, loading_message="Connecting..."):
+def connect_with_popup(root, visa_address, logger, connect_func, timeout = 10, loading_message = "Connecting..."):
     if "No VISA" in visa_address or not visa_address.strip():
         messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
         return False
@@ -70,9 +73,13 @@ def connect_with_popup(root, visa_address, logger, connect_func, timeout=10, loa
     return True
 
 
-def find_project_root(marker="README.md"):
+def find_project_root(marker = "README.md"):
     path = Path(__file__).resolve()
     for parent in path.parents:
         if (parent / marker).exists():
             return parent
     return path.parent  # fallback
+
+
+def add_current_date_to_folder_path(folder_path):
+    return os.path.join(folder_path, f"{datetime.now().strftime('%Y-%m-%d')}")
