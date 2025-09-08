@@ -162,7 +162,7 @@ class SettingsApp(MainBase):
     # ─── Settings Lifecycle ──────────────────────────────────────────────────
     def _collect_settings(self):
         return {
-            "selected_output_folder": self.output_base_file_path,
+            "selected_output_folder": os.path.dirname(self.output_base_file_path),
             "show_tooltip": "False" if self.tooltip_state.get() == 0 else "True",
             "max_points_to_plot": int(self._max_point_entry.get()),
             "max_queue_size": int(self._max_queue_entry.get()),

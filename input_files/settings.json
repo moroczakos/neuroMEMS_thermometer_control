@@ -15,7 +15,7 @@
     },
     "input_files": "input_files",
     "output_files": "output_files",
-    "selected_output_folder": "..\\output_files\\2025-08-25",
+    "selected_output_folder": "..\\output_files",
     "log_files": "logs",
     "cycle_sequence_file": "square_wave4.json",
     "cycle_sequence": [
