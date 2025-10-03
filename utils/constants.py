@@ -41,3 +41,9 @@ class UI:
     SHOW_TOOLTIP = "show_tooltip"
     MAX_QUEUE_SIZE = "max_queue_size"
     MAX_POINTS_TO_PLOT = "max_points_to_plot"
+    ENABLE_DIGITAL_IO = "enable_digital_io"
+
+
+class Other:
+    HIGH = "high"
+    LOW = "low"

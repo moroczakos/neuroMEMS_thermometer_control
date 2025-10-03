@@ -55,3 +55,9 @@ class SourceHandler2611(SourceHandler):
 
     def set_voltage_limit(self, value):
         self.instrument.write(f"smua.source.limitv = {value}")
+
+    def set_digital_io_high(self):
+        self.instrument.write(f"digio.writebit(1, 1)")
+
+    def set_digital_io_low(self):
+        self.instrument.write(f"digio.writebit(1, 0)")

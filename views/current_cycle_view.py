@@ -23,7 +23,7 @@ from utils.other_utils import (
     save_setting_from_widget,
 )
 from utils.plot_utils import create_dual_axis_plot
-from utils.constants import Keys, EntryConfig, States, Labels, Logger, UI
+from utils.constants import Keys, EntryConfig, States, Labels, Logger, UI, Other
 from utils.ui_utils.tooltip import ToolTip
 
 
@@ -38,6 +38,7 @@ class CurrentCycleView(ViewBase):
         # Settings
         self.start_low = True  # Square wave current starts with low value
         self.profile = profile
+        self.enable_digital_io = self.setting_manager.load_setting(UI.ENABLE_DIGITAL_IO) == "True"
 
         # Instrument
         self.instrument_manager = InstrumentManager()
@@ -232,23 +233,33 @@ class CurrentCycleView(ViewBase):
                                                                                          sticky = 'w')
 
     def _generate_waveform(self, sequence, n_cycles):
-        def append_step(time_points, current_points, current_time, step):
-            time_points.extend([current_time, current_time + step["duration"]])
+        def append_step(time_points, current_points, current_time, digital_io_intervals, step):
+            start_time = current_time
+            end_time = current_time + step["duration"]
+
+            # waveform points
+            time_points.extend([start_time, end_time])
             current_points.extend([step["current"], step["current"]])
-            return current_time + step["duration"]
+
+            # digital_io high intervals
+            if self.enable_digital_io and step.get("digital_io", Other.LOW) == Other.HIGH:
+                digital_io_intervals.append((start_time, end_time))
+
+            return end_time
 
         time_points = []
         current_points = []
+        digital_io_intervals = []
         current_time = 0
 
         if sequence and all(k in sequence[0] for k in ("current", "duration")):
-            current_time = append_step(time_points, current_points, current_time, sequence.pop(0))
+            current_time = append_step(time_points, current_points, current_time, digital_io_intervals, sequence.pop(0))
 
         for _ in range(n_cycles):
             for step in sequence:
-                current_time = append_step(time_points, current_points, current_time, step)
+                current_time = append_step(time_points, current_points, current_time, digital_io_intervals, step)
 
-        return time_points, current_points
+        return time_points, current_points, digital_io_intervals
 
     def _plot_waveform(self):
         sequence = self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE)
@@ -256,10 +267,17 @@ class CurrentCycleView(ViewBase):
         n_cycles = get_widget_value(self.cycles)
 
         if n_cycles:
-            time_data, current_data = self._generate_waveform(sequence, n_cycles)
+            time_data, current_data, digital_io_intervals = self._generate_waveform(sequence, n_cycles)
 
             self.preview_ax.clear()
+
+            # plot main waveform
             self.preview_ax.step(time_data, current_data, where = "post", linewidth = 2)
+
+            # add green shaded regions
+            for start, end in digital_io_intervals:
+                self.preview_ax.axvspan(start, end, color = "green", alpha = 0.3)
+
             self.preview_canvas.draw()
 
     def _show_full_plot_popup(self, event = None):
@@ -280,13 +298,24 @@ class CurrentCycleView(ViewBase):
         n_cycles = get_widget_value(self.cycles)
 
         if n_cycles:
-            time_data, current_data = self._generate_waveform(sequence, n_cycles)
+            time_data, current_data, digital_io_intervals = self._generate_waveform(sequence, n_cycles)
 
+            # plot main waveform
             ax.step(time_data, current_data, where = "post", linewidth = 2)
             ax.set_title("Current Cycle Waveform")
             ax.set_xlabel("Time (s)")
             ax.set_ylabel("Current (A)")
             ax.grid(True)
+
+            # add green shaded regions
+            shade_patch = None
+            for i, (start, end) in enumerate(digital_io_intervals):
+                shade_patch = ax.axvspan(start, end, color = "green", alpha = 0.3,
+                                         label = "Digital I/O HIGH" if i == 0 else None)
+
+            if shade_patch:
+                ax.legend(loc = "upper right")
+
             canvas.draw()
 
     @safe_execute

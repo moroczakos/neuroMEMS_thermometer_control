@@ -17,49 +17,30 @@
     "output_files": "output_files",
     "selected_output_folder": "..\\output_files",
     "log_files": "logs",
-    "cycle_sequence_file": "square_wave4.json",
+    "cycle_sequence_file": "square_wave3.json",
     "cycle_sequence": [
         {
-            "current": 0.1,
-            "duration": 10.0
+            "current": 0.01,
+            "duration": 2.0,
+            "digital_io": "high"
         },
         {
             "current": 0.2,
-            "duration": 0.5
-        },
-        {
-            "current": 0.3,
-            "duration": 0.5
+            "duration": 10.0,
+            "digital_io": "low"
         },
         {
             "current": 0.4,
-            "duration": 0.5
-        },
-        {
-            "current": 0.5,
-            "duration": 0.5
+            "duration": 20.0,
+            "digital_io": "high"
         },
         {
             "current": 0.6,
-            "duration": 0.5
-        },
-        {
-            "current": 0.7,
-            "duration": 0.5
-        },
-        {
-            "current": 0.8,
-            "duration": 0.5
-        },
-        {
-            "current": 0.9,
-            "duration": 0.5
-        },
-        {
-            "current": 1.0,
-            "duration": 0.5
+            "duration": 5.0,
+            "digital_io": "low"
         }
     ],
     "tooltips": "tooltip.json",
-    "show_tooltip": "True"
+    "show_tooltip": "True",
+    "enable_digital_io": "True"
 }

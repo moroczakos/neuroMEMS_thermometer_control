@@ -28,6 +28,10 @@ class SettingsApp(MainBase):
             value = 0 if self.setting_manager.load_setting(UI.SHOW_TOOLTIP) == "False" else 1
         )
 
+        self.digital_io_state = tk.IntVar(
+            value = 0 if self.setting_manager.load_setting(UI.ENABLE_DIGITAL_IO) == "False" else 1
+        )
+
         self._build_ui()
 
         # Save baseline settings for change detection
@@ -43,6 +47,7 @@ class SettingsApp(MainBase):
         row = 0
         row = self._build_file_info_section(frame, row)
         row = self._build_tooltip_section(frame, row)
+        row = self._build_digital_io_section(frame, row)
         self._build_entry_section(frame, row)
         self._build_save_section()
 
@@ -74,6 +79,18 @@ class SettingsApp(MainBase):
             row = row, column = 3, sticky = "w"
         )
         self.tooltip_state.trace_add("write", lambda *_: self._check_changes())
+
+        return row + 1
+
+    def _build_digital_io_section(self, frame, row):
+        ttk.Label(frame, text = "Enable digital IO").grid(row = row, column = 0, sticky = "w")
+        ttk.Checkbutton(frame, variable = self.digital_io_state).grid(
+            row = row, column = 1, sticky = "w"
+        )
+        ttk.Button(frame, text = "Default", command = lambda: self.digital_io_state.set(1)).grid(
+            row = row, column = 3, sticky = "w"
+        )
+        self.digital_io_state.trace_add("write", lambda *_: self._check_changes())
 
         return row + 1
 
@@ -164,6 +181,7 @@ class SettingsApp(MainBase):
         return {
             "selected_output_folder": os.path.dirname(self.output_base_file_path),
             "show_tooltip": "False" if self.tooltip_state.get() == 0 else "True",
+            "enable_digital_io": "False" if self.digital_io_state.get() == 0 else "True",
             "max_points_to_plot": int(self._max_point_entry.get()),
             "max_queue_size": int(self._max_queue_entry.get()),
         }

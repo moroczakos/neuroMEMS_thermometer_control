@@ -4,7 +4,7 @@ import traceback
 from tkinter import ttk, messagebox, filedialog
 import json
 
-from utils.constants import Keys, UI
+from utils.constants import Keys, UI, Other
 from utils.settings_utils import load_tooltip_data
 from utils.ui_utils.tooltip import ToolTip
 
@@ -24,6 +24,7 @@ class CycleSequenceEditor(tk.Tk):
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
         self.tooltips = load_tooltip_data(
             os.path.join(self.input_file_path, self.setting_manager.load_setting(UI.TOOLTIPS)))
+        self.enable_digital_io = self.setting_manager.load_setting(UI.ENABLE_DIGITAL_IO) == "True"
         self.logger = logger
 
         # Frame to hold Treeview and scrollbar together
@@ -31,17 +32,24 @@ class CycleSequenceEditor(tk.Tk):
         tree_frame.pack(fill = tk.BOTH, expand = True, padx = 10, pady = 10)
 
         # Treeview widget
-        self.tree = ttk.Treeview(tree_frame, columns = ("Step", "Current", "Duration"), show = "headings",
-                                 selectmode = "browse")
+        columns = ("Step", "Current", "Duration")
+        if self.enable_digital_io:
+            columns += ("Digital IO",)
+
+        self.tree = ttk.Treeview(tree_frame, columns = columns, show = "headings", selectmode = "browse")
         self.tree.tag_configure("offset", background = "#e0e0e0")
         self.tree.heading("Step", text = "Step #")
         self.tree.heading("Current", text = "Current (A)")
         self.tree.heading("Duration", text = "Duration (s)")
 
         self.tree.column("Step", width = 40, anchor = "center")
-        self.tree.column("Current", anchor = "center", width = 200)
-        self.tree.column("Duration", anchor = "center", width = 200)
+        self.tree.column("Current", anchor = "center", width = 100)
+        self.tree.column("Duration", anchor = "center", width = 100)
         self.tree.pack(side = tk.LEFT, fill = tk.BOTH, expand = True)
+
+        if self.enable_digital_io:
+            self.tree.heading("Digital IO", text = "Digital IO (high ☑ / low ☐)")
+            self.tree.column("Digital IO", anchor = "center", width = 100)
 
         # Vertical scrollbar
         scrollbar = tk.Scrollbar(tree_frame, orient = tk.VERTICAL, command = self.tree.yview)
@@ -50,6 +58,7 @@ class CycleSequenceEditor(tk.Tk):
         self.tree.configure(yscrollcommand = scrollbar.set)
 
         self.tree.bind("<Double-1>", self._on_double_click)
+        self.tree.bind("<Button-1>", self._on_click)
 
         # Control buttons
         button_frame = tk.Frame(self)
@@ -73,6 +82,11 @@ class CycleSequenceEditor(tk.Tk):
 
         self.logger.info(f"Cycle Sequence Editor is opened.")
 
+        self.checkbox_symbols = {
+            Other.HIGH: "☑",  # checked
+            Other.LOW: "☐"  # unchecked
+        }
+
         # Load default cycle JSON on startup
         default_file = os.path.join(self.input_file_path, self.setting_manager.load_setting(Keys.CYCLE_SEQUENCE_FILE))
         if os.path.exists(default_file):
@@ -90,7 +104,9 @@ class CycleSequenceEditor(tk.Tk):
             for idx, step in enumerate(data, start = 1):
                 current = step.get("current")
                 duration = step.get("duration")
-                self.tree.insert("", "end", values = (idx, current, duration))
+                digital_io = step.get("digital_io", Other.LOW)  # default to LOW
+                symbol = self.checkbox_symbols.get(digital_io, "☐")
+                self.tree.insert("", "end", values = (idx, current, duration, symbol))
 
             self._renumber_steps()
             self.logger.info(f"Successfully loaded cycle data from {file_path}")
@@ -99,31 +115,34 @@ class CycleSequenceEditor(tk.Tk):
             self.logger.error(f"Failed to load default JSON: {e}\n{traceback.format_exc()}")
             messagebox.showerror("Error", f"Failed to load default JSON:\n{e}")
             self._keep_window_top()
-
             self._add_step()
 
-    def _add_step(self, current = "0.01", duration = "1.0"):
+    def _add_step(self, current = "0.01", duration = "1.0", digital_io = Other.LOW):
         step_number = len(self.tree.get_children())
         if step_number == 0:
             self.logger.info("Offset row is missing, inserting Offset.")
-            self.tree.insert("", "end", values = ("Offset", "0.0", "0.0"), tags = ("offset",))  # Offset step
+            self.tree.insert("", "end", values = ("Offset", "0.0", "0.0", self.checkbox_symbols[Other.LOW]),
+                             tags = ("offset",))  # Offset step
             step_number += 1
 
-        self.logger.info(f"Added step #{step_number}: current={current} A, duration={duration} s")
-        self.tree.insert("", "end", values = (step_number, current, duration))
+        self.logger.info(
+            f"Added step #{step_number}: current={current} A, duration={duration} s, digital IO={digital_io}")
+        self.tree.insert(
+            "", "end",
+            values = (step_number, current, duration, self.checkbox_symbols[digital_io]))
         self._renumber_steps()
         self._mark_dirty()
 
     def _renumber_steps(self):
         children = self.tree.get_children()
         for idx, row in enumerate(children):
-            current, duration = self.tree.item(row, "values")[1:]
+            current, duration, digital_io = self.tree.item(row, "values")[1:]
             if idx == 0:
                 step_number = "Offset"
-                self.tree.item(row, values = (step_number, current, duration), tags = ("offset",))
+                self.tree.item(row, values = (step_number, current, duration, digital_io), tags = ("offset",))
             else:
                 step_number = str(idx)
-                self.tree.item(row, values = (step_number, current, duration))
+                self.tree.item(row, values = (step_number, current, duration, digital_io))
 
     def _remove_selected(self):
         selected = self.tree.selection()
@@ -148,7 +167,7 @@ class CycleSequenceEditor(tk.Tk):
         if index > 0:
             above = self.tree.get_children()[index - 1]
             self.logger.info(
-                f"Move step #{self.tree.item(selected[0], "values")[0]} up: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s")
+                f"Move step #{self.tree.item(selected[0], "values")[0]} up: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s, digital IO={self.tree.item(selected[0], "values")[3]}")
             self._swap_items(item, above)
             self._renumber_steps()
             self._mark_dirty()
@@ -164,7 +183,7 @@ class CycleSequenceEditor(tk.Tk):
         if index < len(children) - 1:
             below = children[index + 1]
             self.logger.info(
-                f"Move step #{self.tree.item(selected[0], "values")[0]} down: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s")
+                f"Move step #{self.tree.item(selected[0], "values")[0]} down: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s, digital IO={self.tree.item(selected[0], "values")[3]}")
             self._swap_items(item, below)
             self._renumber_steps()
             self._mark_dirty()
@@ -179,14 +198,21 @@ class CycleSequenceEditor(tk.Tk):
     def _get_sequence(self):
         sequence = []
         for idx, row in enumerate(self.tree.get_children()):
-            _, current_str, duration_str = self.tree.item(row)["values"]
+            values = self.tree.item(row)["values"]
+
+            _, current_str, duration_str, digital_io_str = values
+            symbol_to_val = {"☑": Other.HIGH, "☐": Other.LOW}
+            digital_io_val = symbol_to_val.get(digital_io_str, Other.LOW)
+
             try:
                 current = float(current_str)
                 duration = float(duration_str)
                 if duration <= 0:
                     raise ValueError("Duration must be positive.")
-                sequence.append({"current": current, "duration": duration})
+
+                sequence.append({"current": current, "duration": duration, "digital_io": digital_io_val})
             except ValueError as e:
+
                 self.logger.error(f"Invalid step: {e}")
                 messagebox.showerror("Invalid Input", f"Invalid step: {e}")
                 self._keep_window_top()
@@ -246,12 +272,27 @@ class CycleSequenceEditor(tk.Tk):
             # Offset as Step 0
             if sequence and "current" in sequence[0] and "duration" in sequence[0]:
                 offset = sequence.pop(0)
-                self.tree.insert("", "end", values = ("Offset", offset["current"], offset["duration"]),
-                                 tags = ("offset",))
+                current = offset.get("current")
+                duration = offset.get("duration")
+
+                if self.enable_digital_io:
+                    digital_io = offset.get("digital_io", Other.LOW)
+                    symbol = self.checkbox_symbols.get(digital_io, "☐")
+                    self.tree.insert("", "end", values = ("Offset", current, duration, symbol), tags = ("offset",))
+                else:
+                    self.tree.insert("", "end", values = ("Offset", current, duration), tags = ("offset",))
 
             # Add remaining steps
             for idx, step in enumerate(sequence, start = 1):
-                self.tree.insert("", "end", values = (idx, step["current"], step["duration"]))
+                current = step.get("current")
+                duration = step.get("duration")
+
+                if self.enable_digital_io:
+                    digital_io = step.get("digital_io", Other.LOW)
+                    symbol = self.checkbox_symbols.get(digital_io, "☐")
+                    self.tree.insert("", "end", values = (idx, current, duration, symbol))
+                else:
+                    self.tree.insert("", "end", values = (idx, current, duration))
 
             messagebox.showinfo("Import Successful", f"Loaded {len(sequence)} steps.")
             self._keep_window_top()
@@ -267,6 +308,10 @@ class CycleSequenceEditor(tk.Tk):
     def _on_double_click(self, event):
         region = self.tree.identify("region", event.x, event.y)
         if region != "cell":
+            return
+
+        column = self.tree.identify_column(event.x)
+        if column == "#4":  # skip Digital IO column
             return
 
         # Clean up previous entry popup if it exists
@@ -289,6 +334,26 @@ class CycleSequenceEditor(tk.Tk):
         self.entry_popup.focus()
         self.entry_popup.bind("<Return>", lambda e: self._save_edit(row_id, column))
         self.entry_popup.bind("<Escape>", lambda e: self._cancel_edit())
+
+    def _on_click(self, event):
+        region = self.tree.identify("region", event.x, event.y)
+        if region != "cell":
+            return
+
+        column = self.tree.identify_column(event.x)
+        if column != "#4":  # Digital IO column is 4th
+            return
+
+        row_id = self.tree.identify_row(event.y)
+        if not row_id:
+            return
+
+        current_val = self.tree.set(row_id, "Digital IO")
+        # toggle between ☐ and ☑
+        new_val = "☑" if current_val == "☐" else "☐"
+        self.tree.set(row_id, "Digital IO", new_val)
+
+        self._mark_dirty()
 
     def _save_edit(self, row_id, column):
         new_value = self.entry_popup.get()

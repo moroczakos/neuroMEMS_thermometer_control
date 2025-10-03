@@ -11,7 +11,7 @@ class SourceHandler6221(SourceHandler):
     def connect(self, resource_manager):
         if self.use_mock or self.address == "MOCK_6221":
             self.instrument = self._get_mock()
-            #time.sleep(11)
+            # time.sleep(11)
         else:
             self.instrument = resource_manager.open_resource(self.address)
         self.reset()
@@ -45,3 +45,9 @@ class SourceHandler6221(SourceHandler):
 
     def set_voltage_limit(self, value):
         self.instrument.write(f":SOUR:CURR:COMP {value}")
+
+    def set_digital_io_high(self):
+        pass
+
+    def set_digital_io_low(self):
+        pass

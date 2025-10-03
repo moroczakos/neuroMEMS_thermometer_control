@@ -8,7 +8,7 @@ from threading import Event
 
 # ─── Local Modules ───────────────────────────────────────────────────────────
 from utils.csv_data_logger import CSVDataLogger
-from utils.constants import Keys, Logger, UI
+from utils.constants import Keys, Logger, UI, Other
 
 
 class CurrentCycleModel:
@@ -17,6 +17,7 @@ class CurrentCycleModel:
 
         # Settings
         self.setting_manager = setting_manager
+        self.enable_digital_io = self.setting_manager.load_setting(UI.ENABLE_DIGITAL_IO) == "True"
         self.output_file_path = output_file_path
         self.cycles = None
         self.interval = None
@@ -139,6 +140,7 @@ class CurrentCycleModel:
     def _cycle_sequence_loop(self):
         try:
             source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+            source_handler.set_digital_io_low()
             start_time = time.time()
 
             self._notify_logger(Logger.INFO, "Starting offset")
@@ -173,6 +175,8 @@ class CurrentCycleModel:
             return False
 
         self._set_current(source_handler, step["current"], step["duration"])
+        if self.enable_digital_io:
+            self._set_digital_io(source_handler, step.get("digital_io", Other.LOW), step["duration"])
 
         return True
 
@@ -194,6 +198,8 @@ class CurrentCycleModel:
                 return False
 
             self._set_current(source_handler, step["current"], step["duration"])
+            if self.enable_digital_io:
+                self._set_digital_io(source_handler, step.get("digital_io", Other.LOW), step["duration"])
 
         return True
 
@@ -206,6 +212,14 @@ class CurrentCycleModel:
     def _set_current(self, source_handler, current, duration):
         self._notify_logger(Logger.INFO, f"Setting current to {current} A for {duration} s")
         source_handler.set_current(current)
+
+    def _set_digital_io(self, source_handler, value, duration):
+        if value == Other.HIGH:
+            source_handler.set_digital_io_high()
+            self._notify_logger(Logger.INFO, f"Setting digital IO to 'high' for {duration} s")
+        else:
+            source_handler.set_digital_io_low()
+            self._notify_logger(Logger.INFO, f"Setting digital IO to 'low' for {duration} s")
 
     def _measure_loop(self):
         while self.running:

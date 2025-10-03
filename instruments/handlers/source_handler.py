@@ -3,7 +3,7 @@ from instruments.handlers.base import InstrumentHandler
 
 
 class SourceHandler(InstrumentHandler, ABC):
-    def __init__(self, address, use_mock=False):
+    def __init__(self, address, use_mock = False):
         super().__init__(address, use_mock)
         self.current = 0.0
 
@@ -21,6 +21,14 @@ class SourceHandler(InstrumentHandler, ABC):
 
     @abstractmethod
     def measure(self):
+        pass
+
+    @abstractmethod
+    def set_digital_io_high(self):
+        pass
+
+    @abstractmethod
+    def set_digital_io_low(self):
         pass
 
     def get_error(self):
