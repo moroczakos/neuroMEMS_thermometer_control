@@ -46,7 +46,7 @@ jobs:
 
           # Automatically detect all Python modules recursively
           $hiddenImports = @()
-          foreach ($dir in @("apps","base_classes","controllers", "instruments", "models", "utils", "views")) {
+          foreach ($dir in @("apps", "base_classes", "controllers", "instruments", "models", "utils", "views")) {
               if (Test-Path $dir) {
                   Get-ChildItem -Path $dir -Recurse -File -Filter "*.py" | ForEach-Object {
                       if ($_.Name -ne "__init__.py") {
@@ -58,11 +58,10 @@ jobs:
               }
           }
 
-          $hiddenString = $hiddenImports -join " "
-          Write-Host "Detected hidden imports: $hiddenString"
+          Write-Host "Detected hidden imports: $($hiddenImports -join ' ')"
 
           # Build the EXE
-          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5 $hiddenString
+          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5 $hiddenImports
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
