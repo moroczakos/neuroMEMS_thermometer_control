@@ -46,22 +46,17 @@ jobs:
 
           # Build the EXE
           pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5
+          
+          # Copy input_files folder and icon.png into dist
+          Copy-Item -Recurse -Force "input_files" "dist\"
+          Copy-Item -Force "icon.png" "dist\"
 
       - name: Rename dist folder with date, copy additional files
         shell: pwsh
         run: |
-          # Get the date-based folder name
           $date = Get-Date -Format "yyyyMMdd"
           $newName = "CombinedApp$($date)"
-          
-          # Rename the PyInstaller dist output
           Rename-Item -Path "dist\CombinedApp" -NewName $newName
-          
-          # Copy input_files folder and icon.png into the renamed dist folder
-          Copy-Item -Path "input_files" -Destination "dist\$newName\input_files" -Recurse -Force
-          Copy-Item -Path "icon.png" -Destination "dist\$newName\icon.png" -Force
-          
-          # Save folder name for later steps
           echo "NEW_DIST_FOLDER=$newName" >> $env:GITHUB_ENV
 
       - name: List dist contents
