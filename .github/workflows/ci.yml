@@ -36,6 +36,12 @@ jobs:
           Write-Host "Running all tests from repository root..."
           python -m pytest -q .
 
+      - name: Debug working directory and files
+        shell: pwsh
+        run: |
+          Write-Host "Current directory: $PWD"
+          Get-ChildItem -Recurse -Depth 2 | Select-Object FullName
+
       - name: Build EXE with PyInstaller
         shell: pwsh
         run: |
@@ -47,7 +53,7 @@ jobs:
           Write-Host "Detected hidden imports: $($hiddenImports -join ' ')"
 
           # Build the EXE
-          pyinstaller --onedir --windowed --paths=. --icon=icon.ico main.py --exclude PyQt5
+          pyinstaller --onedir --windowed --paths="$PWD" --paths="$PWD\apps" --icon=icon.ico main.py --exclude PyQt5
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"

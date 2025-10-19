@@ -1,15 +1,18 @@
 import sys, os
 import tkinter as tk
 
-# Fix import paths for both local and PyInstaller environments
+# --- Dynamic path setup for local + PyInstaller ---
 if getattr(sys, 'frozen', False):
-    BASE_PATH = sys._MEIPASS  # Temp folder used by PyInstaller
+    BASE_PATH = sys._MEIPASS
 else:
-    BASE_PATH = os.path.abspath(os.path.dirname(__file__))
+    BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 
-# Add project root to sys.path
-if BASE_PATH not in sys.path:
-    sys.path.insert(0, BASE_PATH)
+PROJECT_ROOT = os.path.abspath(BASE_PATH)
+
+# Add project root and key subfolders to sys.path
+for folder in [PROJECT_ROOT, os.path.join(PROJECT_ROOT, "apps")]:
+    if folder not in sys.path:
+        sys.path.insert(0, folder)
 
 from apps.CombinedApp import CombinedApp
 
