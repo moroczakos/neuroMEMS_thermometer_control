@@ -7,7 +7,7 @@ from utils.other_utils import find_project_root, add_current_date_to_folder_path
 
 class MainBase:
     def __init__(self):
-        self.project_root = ".."  # find_project_root()
+        self.project_root = ""  # find_project_root()
         self.setting_manager = self._load_settings()
         self.logger_manager = None
         self.logger = None
@@ -39,6 +39,3 @@ class MainBase:
         log_path = os.path.join(self.log_file_path, log_file_name)
         self.logger_manager = LoggerManager(log_file = log_path)
         self.logger = self.logger_manager.get_logger()
-
-    def __del__(self):
-        self.logger_manager.close()

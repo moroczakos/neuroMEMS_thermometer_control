@@ -15,7 +15,7 @@ class ViewBase:
 
         self.logger = logger
         self.setting_manager = setting_manager
-        self.project_root = ".."  # find_project_root()
+        self.project_root = ""  # find_project_root()
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
         self.tooltips = load_tooltip_data(
             os.path.join(self.input_file_path, self.setting_manager.load_setting(UI.TOOLTIPS)))
