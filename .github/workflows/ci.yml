@@ -1,0 +1,66 @@
+name: Build, Test and Package (Windows)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path -Path 'requirements.txt') {
+            python -m pip install -r requirements.txt
+          } else {
+            python -m pip install pytest pyinstaller
+          }
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          if (Test-Path -Path 'tests') {
+            python -m pytest -q
+          } else {
+            Write-Host "No tests directory found, skipping tests."
+          }
+
+      - name: Build EXE with PyInstaller
+        shell: pwsh
+        run: |
+          # Clean old builds
+          if (Test-Path -Path 'build') { Remove-Item -Recurse -Force build }
+          if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
+          if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
+
+          # Build executable
+          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude=PyQt5
+
+      - name: List dist contents
+        shell: pwsh
+        run: |
+          if (Test-Path -Path 'dist') {
+            Get-ChildItem -Recurse -Force dist | Select-Object FullName, Length
+          } else {
+            Write-Host "No dist folder produced."
+          }
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe-dist
+          path: dist
