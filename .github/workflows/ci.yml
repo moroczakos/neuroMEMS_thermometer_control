@@ -72,7 +72,7 @@ jobs:
         run: |
           $date = Get-Date -Format "yyyyMMdd"
           $newName = "CombinedApp$($date)"
-          Rename-Item -Path "dist\main" -NewName $newName
+          Rename-Item -Path "dist\CombinedApp" -NewName $newName
           echo "NEW_DIST_FOLDER=$newName" >> $env:GITHUB_ENV
 
       - name: List dist contents
