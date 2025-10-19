@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Frame
@@ -6,6 +6,10 @@ from apps.TemperatureMeasurementStationApp import TemperatureMeasurementStationA
 from apps.TemperaturePlotterApp import TemperaturePlotterApp
 from apps.TemperatureByRecalibratedProbeDataApp import TemperatureByRecalibratedProbeDataApp
 from apps.settings_app import SettingsApp
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 
 class CombinedApp:
