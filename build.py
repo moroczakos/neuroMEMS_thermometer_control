@@ -2,7 +2,7 @@ import PyInstaller.__main__
 from PyInstaller.utils.hooks import collect_submodules
 
 # List all your project packages
-packages = ['apps' 'base_classes', 'controllers', 'instruments', 'models', 'views', 'utils']
+packages = ['apps', 'base_classes', 'controllers', 'instruments', 'models', 'views', 'utils']
 
 # Collect all submodules automatically
 hidden_imports = []
