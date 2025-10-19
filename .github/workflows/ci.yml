@@ -44,6 +44,23 @@ jobs:
           if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
           # if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
 
+          # Automatically detect all Python modules recursively
+          $hiddenImports = @()
+          foreach ($dir in @("apps","base_classes","controllers", "instruments", "models", "utils", "views")) {
+              if (Test-Path $dir) {
+                  Get-ChildItem -Path $dir -Recurse -File -Filter "*.py" | ForEach-Object {
+                      if ($_.Name -ne "__init__.py") {
+                          $relativePath = $_.FullName.Substring($PWD.Path.Length + 1)
+                          $module = $relativePath.Replace("\", ".").Replace(".py","")
+                          $hiddenImports += "--hidden-import=$module"
+                      }
+                  }
+              }
+          }
+
+          $hiddenString = $hiddenImports -join " "
+          Write-Host "Detected hidden imports: $hiddenString"
+
           # Build the EXE
           pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5
           
