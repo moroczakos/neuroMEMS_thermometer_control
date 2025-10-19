@@ -1,8 +1,6 @@
 import sys, os
 import tkinter as tk
 
-from apps.CombinedApp import CombinedApp
-
 # Fix import paths for both local and PyInstaller environments
 if getattr(sys, 'frozen', False):
     BASE_PATH = sys._MEIPASS  # Temp folder used by PyInstaller
@@ -12,6 +10,8 @@ else:
 # Add project root to sys.path
 if BASE_PATH not in sys.path:
     sys.path.insert(0, BASE_PATH)
+
+from apps.CombinedApp import CombinedApp
 
 if __name__ == "__main__":
     root = tk.Tk()
