@@ -3,16 +3,17 @@ import tkinter as tk
 
 # --- Dynamic path setup for local + PyInstaller ---
 if getattr(sys, 'frozen', False):
-    BASE_PATH = sys._MEIPASS
+    # Running as a PyInstaller bundle
+    base_path = sys._MEIPASS
 else:
-    BASE_PATH = os.path.dirname(os.path.abspath(__file__))
+    # Running from source
+    base_path = os.path.abspath(os.path.dirname(__file__))
 
-PROJECT_ROOT = os.path.abspath(BASE_PATH)
-
-# Add project root and key subfolders to sys.path
-for folder in [PROJECT_ROOT, os.path.join(PROJECT_ROOT, "apps")]:
-    if folder not in sys.path:
-        sys.path.insert(0, folder)
+# Add both base path and its subfolders (apps, etc.) to sys.path
+for folder in ["", "apps", "controllers", "instruments", "models", "utils", "views", "base_classes"]:
+    path_to_add = os.path.join(base_path, folder)
+    if os.path.isdir(path_to_add) and path_to_add not in sys.path:
+        sys.path.insert(0, path_to_add)
 
 from apps.CombinedApp import CombinedApp
 
