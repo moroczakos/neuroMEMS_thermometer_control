@@ -7,7 +7,7 @@ block_cipher = None
 
 # Automatically collect all submodules from your packages
 hidden_imports = []
-for pkg in ['apps', 'controllers', 'models', 'views', 'utils', 'base_classes']:
+for pkg in ['apps', 'controllers', 'instruments', 'models', 'views', 'utils', 'base_classes']:
     hidden_imports += collect_submodules(pkg)
 
 a = Analysis(

@@ -46,7 +46,7 @@ jobs:
           if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
 
           # Build the EXE
-          pyinstaller main.spec
+          python build.py
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
