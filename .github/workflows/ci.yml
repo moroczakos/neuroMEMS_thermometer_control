@@ -62,6 +62,7 @@ jobs:
             --paths="$PWD\views" `
             --paths="$PWD\base_classes" `
             --paths="$PWD\instruments" `
+            --hidden-import=apps.cycle_sequence_editor `
             --icon=icon.ico `
             main.py --exclude PyQt5
           
