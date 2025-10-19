@@ -53,7 +53,17 @@ jobs:
           Write-Host "Detected hidden imports: $($hiddenImports -join ' ')"
 
           # Build the EXE
-          pyinstaller --onedir --windowed --paths="$PWD" --paths="$PWD\apps" --icon=icon.ico main.py --exclude PyQt5
+          pyinstaller --onedir --windowed `
+            --paths="$PWD" `
+            --paths="$PWD\apps" `
+            --paths="$PWD\controllers" `
+            --paths="$PWD\models" `
+            --paths="$PWD\utils" `
+            --paths="$PWD\views" `
+            --paths="$PWD\base_classes" `
+            --paths="$PWD\instruments" `
+            --icon=icon.ico `
+            main.py --exclude PyQt5
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
