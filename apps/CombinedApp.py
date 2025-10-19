@@ -7,9 +7,14 @@ from apps.TemperaturePlotterApp import TemperaturePlotterApp
 from apps.TemperatureByRecalibratedProbeDataApp import TemperatureByRecalibratedProbeDataApp
 from apps.settings_app import SettingsApp
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+if getattr(sys, 'frozen', False):
+    # Running in PyInstaller EXE
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+if base_path not in sys.path:
+    sys.path.insert(0, base_path)
 
 
 class CombinedApp:
