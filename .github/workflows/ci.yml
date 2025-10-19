@@ -62,7 +62,7 @@ jobs:
           Write-Host "Detected hidden imports: $hiddenString"
 
           # Build the EXE
-          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5
+          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5 $hiddenString
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
