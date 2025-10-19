@@ -11,32 +11,27 @@
     "cycles": 5,
     "device_settings": {
         "Current range (A)": 0.5,
-        "Voltage limit (V)": 25.0
+        "Voltage limit (V)": 15.0
     },
     "input_files": "input_files",
     "output_files": "output_files",
     "selected_output_folder": "..\\output_files",
     "log_files": "logs",
-    "cycle_sequence_file": "square_wave3.json",
+    "cycle_sequence_file": "square_wave_example.json",
     "cycle_sequence": [
         {
-            "current": 0.01,
+            "current": 0.001,
             "duration": 2.0,
-            "digital_io": "high"
-        },
-        {
-            "current": 0.2,
-            "duration": 10.0,
             "digital_io": "low"
         },
         {
-            "current": 0.4,
+            "current": 0.002,
             "duration": 20.0,
             "digital_io": "high"
         },
         {
-            "current": 0.6,
-            "duration": 5.0,
+            "current": 0.001,
+            "duration": 20.0,
             "digital_io": "low"
         }
     ],

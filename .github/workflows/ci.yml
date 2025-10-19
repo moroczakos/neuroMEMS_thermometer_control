@@ -45,10 +45,20 @@ jobs:
           # Clean old builds
           if (Test-Path -Path 'build') { Remove-Item -Recurse -Force build }
           if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
-          if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
+          # if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
 
           # Build executable
-          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude=PyQt5
+          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py `
+            --add-data "input_files;input_files" `
+            --exclude PyQt5
+
+      - name: Rename dist folder with date
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format "yyyyMMdd"
+          $newName = "CombinedApp$($date)"
+          Rename-Item -Path "dist\CombinedApp" -NewName $newName
+          echo "NEW_DIST_FOLDER=$newName" >> $env:GITHUB_ENV
 
       - name: List dist contents
         shell: pwsh
@@ -62,5 +72,5 @@ jobs:
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-exe-dist
+          name: ${{ env.NEW_DIST_FOLDER }}
           path: dist

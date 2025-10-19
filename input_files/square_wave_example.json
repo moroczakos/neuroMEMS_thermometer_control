@@ -1,0 +1,17 @@
+[
+    {
+        "current": 0.001,
+        "duration": 2.0,
+        "digital_io": "low"
+    },
+    {
+        "current": 0.002,
+        "duration": 20.0,
+        "digital_io": "high"
+    },
+    {
+        "current": 0.001,
+        "duration": 20.0,
+        "digital_io": "low"
+    }
+]
