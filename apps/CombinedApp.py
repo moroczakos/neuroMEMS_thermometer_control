@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import Frame
@@ -6,6 +6,10 @@ from apps.TemperatureMeasurementStationApp import TemperatureMeasurementStationA
 from apps.TemperaturePlotterApp import TemperaturePlotterApp
 from apps.TemperatureByRecalibratedProbeDataApp import TemperatureByRecalibratedProbeDataApp
 from apps.settings_app import SettingsApp
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 
 class CombinedApp:
@@ -41,3 +45,23 @@ class CombinedApp:
             return True
 
         return False
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("Combined Apps in Tabs")
+    root.geometry("1600x900")
+
+    icon_photo = tk.PhotoImage(file = "../icon.png")
+    root.iconphoto(True, icon_photo)
+
+    app = CombinedApp(root)
+
+
+    def on_close():
+        if app.close_app():
+            sys.exit(0)
+
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    root.mainloop()
