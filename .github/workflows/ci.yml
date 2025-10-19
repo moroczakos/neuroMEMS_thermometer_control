@@ -36,12 +36,6 @@ jobs:
           Write-Host "Running all tests from repository root..."
           python -m pytest -q .
 
-      - name: Debug working directory and files
-        shell: pwsh
-        run: |
-          Write-Host "Current directory: $PWD"
-          Get-ChildItem -Recurse -Depth 2 | Select-Object FullName
-
       - name: Build EXE with PyInstaller
         shell: pwsh
         run: |
@@ -55,14 +49,6 @@ jobs:
           # Build the EXE
           pyinstaller --onedir --windowed `
             --paths="$PWD" `
-            --paths="$PWD\apps" `
-            --paths="$PWD\controllers" `
-            --paths="$PWD\models" `
-            --paths="$PWD\utils" `
-            --paths="$PWD\views" `
-            --paths="$PWD\base_classes" `
-            --paths="$PWD\instruments" `
-            --hidden-import=apps.cycle_sequence_editor `
             --icon=icon.ico `
             main.py --exclude PyQt5
           
