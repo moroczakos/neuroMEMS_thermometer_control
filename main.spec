@@ -1,20 +1,30 @@
+# main.spec
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules
+import sys
 
+block_cipher = None
+
+# Automatically collect all submodules from your packages
+hidden_imports = []
+for pkg in ['apps', 'controllers', 'models', 'views', 'utils', 'base_classes']:
+    hidden_imports += collect_submodules(pkg)
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
-    hiddenimports=["apps", "base_classes", "controllers", "instruments", "models", "utils", "views"],
+    datas=[('icon.png', '.'), ('input_files', 'input_files')],
+    hiddenimports=hidden_imports,
     hookspath=[],
-    hooksconfig={},
     runtime_hooks=[],
     excludes=['PyQt5'],
-    noarchive=False,
-    optimize=0,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
@@ -27,19 +37,15 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=['icon.ico'],
+    icon='icon.ico'
 )
+
 coll = COLLECT(
     exe,
     a.binaries,
+    a.zipfiles,
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    name='main',
+    name='main'
 )

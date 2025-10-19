@@ -39,18 +39,14 @@ jobs:
       - name: Build EXE with PyInstaller
         shell: pwsh
         run: |
+          cd $env:GITHUB_WORKSPACE
+          
           # Clean old builds
           if (Test-Path -Path 'build') { Remove-Item -Recurse -Force build }
           if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
-          # if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
-
-          Write-Host "Detected hidden imports: $($hiddenImports -join ' ')"
 
           # Build the EXE
-          pyinstaller --onedir --windowed `
-            --paths="$PWD" `
-            --icon=icon.ico `
-            main.py --exclude PyQt5
+          pyinstaller main.spec
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
