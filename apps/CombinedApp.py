@@ -7,15 +7,6 @@ from apps.TemperaturePlotterApp import TemperaturePlotterApp
 from apps.TemperatureByRecalibratedProbeDataApp import TemperatureByRecalibratedProbeDataApp
 from apps.settings_app import SettingsApp
 
-if getattr(sys, 'frozen', False):
-    # Running in PyInstaller EXE
-    base_path = sys._MEIPASS
-else:
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-if base_path not in sys.path:
-    sys.path.insert(0, base_path)
-
 
 class CombinedApp:
     def __init__(self, root):
@@ -50,23 +41,3 @@ class CombinedApp:
             return True
 
         return False
-
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.title("Combined Apps in Tabs")
-    root.geometry("1600x900")
-
-    icon_photo = tk.PhotoImage(file = "../icon.png")
-    root.iconphoto(True, icon_photo)
-
-    app = CombinedApp(root)
-
-
-    def on_close():
-        if app.close_app():
-            sys.exit(0)
-
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-    root.mainloop()

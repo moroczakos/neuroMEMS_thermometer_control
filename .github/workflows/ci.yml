@@ -44,34 +44,10 @@ jobs:
           if (Test-Path -Path 'dist')  { Remove-Item -Recurse -Force dist }
           # if (Test-Path -Path '.\CombinedApp.spec') { Remove-Item -Force .\CombinedApp.spec -ErrorAction SilentlyContinue }
 
-          # Automatically detect all Python modules recursively
-          $hiddenImports = @()
-          foreach ($dir in @("apps", "base_classes", "controllers", "instruments", "models", "utils", "views")) {
-              if (Test-Path $dir) {
-                  Get-ChildItem -Path $dir -Recurse -File -Filter "*.py" | ForEach-Object {
-                      if ($_.Name -ne "__init__.py") {
-                          $relativePath = $_.FullName.Substring($PWD.Path.Length + 1)
-                          $module = $relativePath.Replace("\", ".").Replace(".py","")
-                          $hiddenImports += "--hidden-import=$module"
-                      }
-                  }
-              }
-          }
-          
-          Get-ChildItem -Path $dir -Recurse -Directory | ForEach-Object {
-            $init = Join-Path $_.FullName "__init__.py"
-            if (Test-Path $init) {
-                $relativeDir = $_.FullName.Substring($PWD.Path.Length + 1)
-                # convert path to module package name (folder.path -> folder.path)
-                $package = $relativeDir.Replace("\", ".")
-                $hiddenImports += "--hidden-import=$package"
-            }
-          }
-
           Write-Host "Detected hidden imports: $($hiddenImports -join ' ')"
 
           # Build the EXE
-          pyinstaller --onedir --windowed --paths=. --icon=icon.ico .\apps\CombinedApp.py --exclude PyQt5 $hiddenImports
+          pyinstaller --onedir --windowed --paths=. --icon=icon.ico main.py --exclude PyQt5
           
           # Copy input_files folder and icon.png into dist
           Copy-Item -Recurse -Force "input_files" "dist\"
