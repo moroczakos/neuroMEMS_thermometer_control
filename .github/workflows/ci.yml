@@ -49,8 +49,8 @@ jobs:
           python build.py
           
           # Copy input_files folder and icon.png into dist
-          Copy-Item -Recurse -Force "input_files" "dist\"
-          Copy-Item -Force "icon.png" "dist\"
+          Copy-Item -Recurse -Force "input_files" "dist\main\"
+          Copy-Item -Force "icon.png" "dist\main\"
 
       - name: Rename dist folder with date, copy additional files
         shell: pwsh
