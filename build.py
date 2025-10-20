@@ -35,7 +35,7 @@ print(f"Total hidden imports detected: {len(hidden_imports)}")
 PyInstaller.__main__.run([
     'main.py',
     '--name=main',
-    '--debug all',
+    '--debug', 'all',
     '--onedir',
     '--windowed',
     '--icon=icon.ico',
