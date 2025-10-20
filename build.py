@@ -4,14 +4,14 @@ import PyInstaller.__main__
 from PyInstaller.utils.hooks import collect_submodules
 
 # -----------------------------------------------------------------------------
-# 1️⃣ Ensure repo root is on sys.path
+# Ensure repo root is on sys.path
 # -----------------------------------------------------------------------------
 repo_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, repo_root)
 os.chdir(repo_root)
 
 # -----------------------------------------------------------------------------
-# 2️⃣ Collect all submodules from key project packages
+# Collect all submodules from key project packages
 # -----------------------------------------------------------------------------
 packages = [
     'apps',
@@ -35,7 +35,7 @@ for pkg in packages:
 print(f"\n🔎 Total hidden imports collected: {len(hidden_imports)}")
 
 # -----------------------------------------------------------------------------
-# 3️⃣ Force-include any modules PyInstaller tends to miss
+# Force-include any modules PyInstaller tends to miss
 # -----------------------------------------------------------------------------
 force_includes = [
     'apps.cycle_sequence_editor',
@@ -49,7 +49,7 @@ for m in force_includes:
         print(f"Already detected: {m}")
 
 # -----------------------------------------------------------------------------
-# 4️⃣ Run PyInstaller build
+# Run PyInstaller build
 # -----------------------------------------------------------------------------
 args = [
     'main.py',
