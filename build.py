@@ -32,7 +32,7 @@ for pkg in packages:
     except Exception as e:
         print(f"Failed to collect submodules for {pkg}: {e}")
 
-print(f"\n🔎 Total hidden imports collected: {len(hidden_imports)}")
+print(f"\n Total hidden imports collected: {len(hidden_imports)}")
 
 # -----------------------------------------------------------------------------
 # Force-include any modules PyInstaller tends to miss
