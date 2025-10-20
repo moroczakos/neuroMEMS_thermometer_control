@@ -29,6 +29,16 @@ if 'apps.cycle_sequence_editor' not in hidden_imports:
     print("WARNING: apps.cycle_sequence_editor not detected — forcing inclusion")
     hidden_imports.append('apps.cycle_sequence_editor')
 
+# Ensure critical modules are included
+force_includes = [
+    'apps.cycle_sequence_editor',
+]
+
+for m in force_includes:
+    if m not in hidden_imports:
+        print(f"⚠️ Forcing inclusion of {m}")
+        hidden_imports.append(m)
+
 print(f"Total hidden imports detected: {len(hidden_imports)}")
 
 # Run PyInstaller
@@ -42,5 +52,6 @@ PyInstaller.__main__.run([
     '--exclude=PyQt5',
     '--paths=.',
     *[f'--hidden-import={m}' for m in hidden_imports],
+    '--add-data=apps/cycle_sequence_editor.py;apps',  # <== Force copy of file
     '--clean'
 ])
