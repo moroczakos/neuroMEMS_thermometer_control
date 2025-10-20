@@ -3,46 +3,55 @@ import sys
 import PyInstaller.__main__
 from PyInstaller.utils.hooks import collect_submodules
 
-# Ensure repo root is in sys.path
+# -----------------------------------------------------------------------------
+# 1️⃣ Ensure repo root is on sys.path
+# -----------------------------------------------------------------------------
 repo_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, repo_root)
 os.chdir(repo_root)
 
-# Automatically find all Python packages (folders with __init__.py)
-packages = []
-for root, dirs, files in os.walk(repo_root):
-    if '__init__.py' in files:
-        # Convert path to dotted package notation
-        rel_path = os.path.relpath(root, repo_root)
-        package_name = rel_path.replace(os.path.sep, '.')
-        packages.append(package_name)
+# -----------------------------------------------------------------------------
+# 2️⃣ Collect all submodules from key project packages
+# -----------------------------------------------------------------------------
+packages = [
+    'apps',
+    'base_classes',
+    'controllers',
+    'instruments',
+    'models',
+    'views',
+    'utils'
+]
 
-print(f"Detected packages: {packages}")
-
-# Collect all submodules for every package
 hidden_imports = []
 for pkg in packages:
-    hidden_imports += collect_submodules(pkg)
+    try:
+        subs = collect_submodules(pkg)
+        hidden_imports += subs
+        print(f"✅ Detected {len(subs)} submodules in {pkg}")
+    except Exception as e:
+        print(f"⚠️ Failed to collect submodules for {pkg}: {e}")
 
-# Optional: sanity check
-if 'apps.cycle_sequence_editor' not in hidden_imports:
-    print("WARNING: apps.cycle_sequence_editor not detected — forcing inclusion")
-    hidden_imports.append('apps.cycle_sequence_editor')
+print(f"\n🔎 Total hidden imports collected: {len(hidden_imports)}")
 
-# Ensure critical modules are included
+# -----------------------------------------------------------------------------
+# 3️⃣ Force-include any modules PyInstaller tends to miss
+# -----------------------------------------------------------------------------
 force_includes = [
     'apps.cycle_sequence_editor',
 ]
 
 for m in force_includes:
     if m not in hidden_imports:
-        print(f"⚠️ Forcing inclusion of {m}")
         hidden_imports.append(m)
+        print(f"⚠️ Forcing inclusion of {m}")
+    else:
+        print(f"✅ Already detected: {m}")
 
-print(f"Total hidden imports detected: {len(hidden_imports)}")
-
-# Run PyInstaller
-PyInstaller.__main__.run([
+# -----------------------------------------------------------------------------
+# 4️⃣ Run PyInstaller build
+# -----------------------------------------------------------------------------
+args = [
     'main.py',
     '--name=main',
     '--debug', 'all',
@@ -52,6 +61,12 @@ PyInstaller.__main__.run([
     '--exclude=PyQt5',
     '--paths=.',
     *[f'--hidden-import={m}' for m in hidden_imports],
-    '--add-data=apps/cycle_sequence_editor.py;apps',  # <== Force copy of file
+    '--add-data=apps/cycle_sequence_editor.py;apps',
     '--clean'
-])
+]
+
+print("\n🚀 Running PyInstaller with the following args:")
+for a in args:
+    print(" ", a)
+
+PyInstaller.__main__.run(args)
