@@ -148,7 +148,7 @@ class CycleSequenceEditor(tk.Tk):
         selected = self.tree.selection()
         if selected:
             self.logger.info(
-                f"Removed step: current: {self.tree.item(selected[0], 'values')[0]} A for {self.tree.item(selected[0], "values")[1]} s")
+                f"Removed step: current: {self.tree.item(selected[0], 'values')[0]} A for {self.tree.item(selected[0], 'values')[1]} s")
             self.tree.delete(selected[0])
             self._renumber_steps()
             self._mark_dirty()
