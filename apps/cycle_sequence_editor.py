@@ -167,7 +167,7 @@ class CycleSequenceEditor(tk.Tk):
         if index > 0:
             above = self.tree.get_children()[index - 1]
             self.logger.info(
-                f"Move step #{self.tree.item(selected[0], "values")[0]} up: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s, digital IO={self.tree.item(selected[0], "values")[3]}")
+                f"Move step #{self.tree.item(selected[0], 'values')[0]} up: current={self.tree.item(selected[0], 'values')[1]} A, duration={self.tree.item(selected[0], 'values')[2]} s, digital IO={self.tree.item(selected[0], 'values')[3]}")
             self._swap_items(item, above)
             self._renumber_steps()
             self._mark_dirty()
@@ -183,7 +183,7 @@ class CycleSequenceEditor(tk.Tk):
         if index < len(children) - 1:
             below = children[index + 1]
             self.logger.info(
-                f"Move step #{self.tree.item(selected[0], "values")[0]} down: current={self.tree.item(selected[0], "values")[1]} A, duration={self.tree.item(selected[0], "values")[2]} s, digital IO={self.tree.item(selected[0], "values")[3]}")
+                f"Move step #{self.tree.item(selected[0], 'values')[0]} down: current={self.tree.item(selected[0], 'values')[1]} A, duration={self.tree.item(selected[0], 'values')[2]} s, digital IO={self.tree.item(selected[0], 'values')[3]}")
             self._swap_items(item, below)
             self._renumber_steps()
             self._mark_dirty()
