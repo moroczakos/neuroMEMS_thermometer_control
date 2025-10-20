@@ -28,9 +28,9 @@ for pkg in packages:
     try:
         subs = collect_submodules(pkg)
         hidden_imports += subs
-        print(f"✅ Detected {len(subs)} submodules in {pkg}")
+        print(f"Detected {len(subs)} submodules in {pkg}")
     except Exception as e:
-        print(f"⚠️ Failed to collect submodules for {pkg}: {e}")
+        print(f"Failed to collect submodules for {pkg}: {e}")
 
 print(f"\n🔎 Total hidden imports collected: {len(hidden_imports)}")
 
@@ -44,9 +44,9 @@ force_includes = [
 for m in force_includes:
     if m not in hidden_imports:
         hidden_imports.append(m)
-        print(f"⚠️ Forcing inclusion of {m}")
+        print(f"Forcing inclusion of {m}")
     else:
-        print(f"✅ Already detected: {m}")
+        print(f"Already detected: {m}")
 
 # -----------------------------------------------------------------------------
 # 4️⃣ Run PyInstaller build
@@ -65,7 +65,7 @@ args = [
     '--clean'
 ]
 
-print("\n🚀 Running PyInstaller with the following args:")
+print("\nRunning PyInstaller with the following args:")
 for a in args:
     print(" ", a)
 
