@@ -19,7 +19,7 @@ class CycleSequenceEditor(tk.Tk):
         self.dirty = False  # tracks unsaved modifications
 
         # Settings
-        self.project_root = ".."  # find_project_root()
+        self.project_root = ""  # find_project_root()
         self.setting_manager = setting_manager
         self.input_file_path = os.path.join(self.project_root, self.setting_manager.load_setting("input_files"))
         self.tooltips = load_tooltip_data(
