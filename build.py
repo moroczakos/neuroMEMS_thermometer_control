@@ -1,7 +1,6 @@
 import os
 import sys
 import PyInstaller.__main__
-from PyInstaller.utils.hooks import collect_submodules
 
 repo_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, repo_root)
