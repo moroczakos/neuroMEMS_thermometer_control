@@ -37,7 +37,7 @@ def load_visa_resources_util(instrument_manager, only_tcpip = False, logger = No
     return resources
 
 
-def connect_with_popup(root, visa_address, logger, connect_func, timeout = 10, loading_message = "Connecting..."):
+def connect_with_popup(root, visa_address, logger, connect_func, timeout = 10):
     if "No VISA" in visa_address or not visa_address.strip():
         messagebox.showerror("Connection Error", "Please select a valid VISA resource.")
         return False
