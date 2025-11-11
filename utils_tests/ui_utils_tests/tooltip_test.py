@@ -101,32 +101,48 @@ def test_show_tip_creates_window(widget):
 
 def test_show_tip_respects_disabled_flag(widget):
     """If global show_tooltip is False, _show_tip does nothing."""
+    # Arrange
     tooltip = ToolTip(widget, "No show")
     ToolTip.show_tooltip = False
+
+    # Act
     tooltip._show_tip()
+
+    # Assert
     assert tooltip.tip_window is None
     ToolTip.show_tooltip = True  # restore
 
 
 def test_show_tip_does_nothing_when_text_missing(widget):
     """If no text is given, tooltip should not display."""
+    # Arrange
     tooltip = ToolTip(widget, "")
+
+    # Act
     tooltip._show_tip()
+
+    # Assert
     assert tooltip.tip_window is None
 
 
 def test_hide_tip_destroys_existing(widget):
     """If tip_window exists, it should be destroyed and set to None."""
+    # Arrange
     tooltip = ToolTip(widget, "Hide me")
     mock_window = MagicMock()
     tooltip.tip_window = mock_window
+
+    # Act
     tooltip._hide_tip()
+
+    # Assert
     mock_window.destroy.assert_called_once()
     assert tooltip.tip_window is None
 
 
 def test_on_motion_updates_position(widget):
     """_on_motion moves the tooltip window based on cursor position."""
+    # Arrange
     tooltip = ToolTip(widget, "Move me")
     tooltip.tip_window = MagicMock()
 
@@ -134,12 +150,18 @@ def test_on_motion_updates_position(widget):
     event.x_root = 50
     event.y_root = 60
 
+    # Act
     tooltip._on_motion(event)
+
+    # Assert
     tooltip.tip_window.geometry.assert_called_once_with("+60+70")
 
 
 def test_on_motion_does_nothing_without_tip(widget):
     """If no tip_window, _on_motion should not crash."""
+    # Arrange
     tooltip = ToolTip(widget, "No move")
     event = MagicMock(x_root=10, y_root=10)
+
+    # Act & Assert
     tooltip._on_motion(event)  # should not raise
