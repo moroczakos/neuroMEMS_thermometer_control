@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import tkinter as tk
 from unittest.mock import MagicMock
@@ -8,6 +10,9 @@ from utils.ui_utils.entry_with_label import EntryWithLabel
 @pytest.fixture
 def root():
     """Creates a Tk root window for widget tests."""
+    if os.environ.get("CI"):
+        pytest.skip("Skipping Tkinter GUI tests in CI environment")
+
     root = tk.Tk()
     root.withdraw()
     yield root
