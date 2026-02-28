@@ -9,6 +9,7 @@ from utils.ui_utils.entry_with_label import EntryWithLabel
 def root():
     """Creates a Tk root window for widget tests."""
     root = tk.Tk()
+    root.withdraw()
     yield root
     root.destroy()
 
