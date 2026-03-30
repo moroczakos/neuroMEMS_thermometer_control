@@ -37,7 +37,8 @@ class TemperaturePlotterApp(MainBase, ViewBase):
         self.file_path = None  # To store the file path selected by user
         self.plot_toolbar = None  # Toolbar for the plot (if it exists)
         self.degree_var = IntVar(value = 1)  # Default polynomial degree value
-        self.smoothing_var = StringVar(value = "50")  # Default smoothing window value (as string)
+        self.smoothing_var = StringVar(value = "10")  # Default smoothing window value (as string)
+        self.transition_min_dist_var = StringVar(value = "10")  # Default min dist value for two adjacent transition points (as string)
 
         # Checkbox variables for showing/hiding plot elements
         for _, var_name, _ in self.CHECKBOX_CONFIGS:
@@ -99,6 +100,10 @@ class TemperaturePlotterApp(MainBase, ViewBase):
         self._add_label_entry(frame, "Smoothing Window (data point):", self.smoothing_var, "smoothing_window")
         self.smoothing_var.trace("w", lambda *a: self.update_plot(f"Smoothing Window is {self.smoothing_var.get()}."))
 
+        self._add_label_entry(frame, "Min dist. transition points:", self.transition_min_dist_var, "min_dist_trans")
+        self.transition_min_dist_var.trace("w", lambda *a: self.update_plot(
+            f"Min distance between transition points is {self.transition_min_dist_var.get()}."))
+
     def create_buttons(self):
         frame = Frame(self.root)
         frame.pack(pady = 20)
@@ -157,19 +162,26 @@ class TemperaturePlotterApp(MainBase, ViewBase):
 
         regex = re.compile(pattern, re.IGNORECASE)
 
-        for fname in os.listdir(folder_path):
-            if regex.match(fname):
-                file = os.path.join(folder_path, fname)
+        self.logger.info(f"Start analyzing folder: {folder_path}")
 
-                self.file_path = file
-                self.plot_data()
+        matching_files = [f for f in os.listdir(folder_path) if regex.match(f)]
+        total_matches = len(matching_files)
 
-                self.canvas.figure.savefig(os.path.join(folder_path, f"{fname}.png"))
-                average_amplitude, avg_rise_time, avg_fall_time = self.plot_data()
+        for i, fname in enumerate(matching_files, 1):
+            self.logger.info(f"Processing {i}/{total_matches}: {fname}")
 
-                csv_logger.write_row([fname, average_amplitude, avg_rise_time, avg_fall_time])
+            self.file_path = os.path.join(folder_path, fname)
+            self.plot_data()
+
+            self.canvas.figure.savefig(os.path.join(folder_path, f"{fname}.png"))
+            average_amplitude, avg_rise_time, avg_fall_time = self.plot_data()
+
+            csv_logger.write_row([fname, average_amplitude, avg_rise_time, avg_fall_time])
 
         csv_logger.close()
+
+        self.logger.info(f"Done analyzing folder: {folder_path}")
+
         self.file_path = temp_path
 
         if self.file_path:
@@ -196,9 +208,10 @@ class TemperaturePlotterApp(MainBase, ViewBase):
             return None, None, None
 
         drift, compensated, smoothed = self.apply_drift_correction(
-            time, temp, self.degree_var.get(), self.get_smoothing_window()
+            time, temp, self.degree_var.get(), self.validate_string_number(self.smoothing_var, "smoothing")
         )
-        transitions = self.find_transitions(smoothed)
+        transitions = self.find_transitions(smoothed, self.validate_string_number(self.transition_min_dist_var,
+                                                                                  "min distance between transition points"))
         avg_amp = self.compute_amplitudes(smoothed, transitions)
         avg_rise, avg_fall, rise_fall_times = self.compute_rise_fall_times(time, smoothed, transitions)
 
@@ -207,18 +220,31 @@ class TemperaturePlotterApp(MainBase, ViewBase):
 
         return avg_amp, avg_rise, avg_fall
 
-    def get_smoothing_window(self):
-        """Retrieve and validate the smoothing window value."""
+    def validate_string_number(self, string_var, variable_descr, fallback_value=10):
+        """Retrieve and validate the string number value."""
+        current_text = string_var.get().strip()
+
+        # If the user is currently deleting/typing (empty box),
+        # don't force a fallback yet.
+        if not current_text:
+            return fallback_value
+
         try:
-            val = int(self.smoothing_var.get())
-            return max(1, val)
+            val = int(current_text)
+
+            if val < 1:
+                raise ValueError
+
+            return val
         except ValueError:
-            self.logger.warning("Invalid smoothing value entered. Defaulting to 10.")
-            return 10  # Default fallback
+            self.logger.warning(f"Invalid {variable_descr} value. Defaulting to {fallback_value}.")
+            string_var.set(str(fallback_value))
+            return fallback_value
 
     def draw_plot(self, time, temp, drift, compensated, smoothed, transitions, avg_amp, avg_rise_time, avg_fall_time,
                   rise_fall_times, degree):
         """Draw the temperature vs time plot with various corrections applied."""
+        plt.close()
         fig, ax = plt.subplots()
 
         # Plot various temperature signals
