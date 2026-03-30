@@ -1,3 +1,4 @@
+import os
 import pytest
 import tkinter as tk
 from unittest.mock import patch
@@ -8,6 +9,9 @@ from utils.ui_utils.loading_popup import LoadingPopup
 @pytest.fixture
 def root():
     """Fixture to provide a Tk root window and destroy it after tests."""
+    if os.environ.get("CI"):
+        pytest.skip("Skipping Tkinter GUI tests in CI environment")
+
     root = tk.Tk()
     root.withdraw()  # Hide main window
     yield root
