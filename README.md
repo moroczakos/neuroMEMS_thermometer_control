@@ -159,7 +159,8 @@ Here are a few screenshots of the app's interface:
    <img width="1602" height="939" alt="temp_recalc" src="https://github.com/user-attachments/assets/c0686dec-d5ac-406d-b891-e7d00945a2e6" />
 
 4. **Settings**:
-   <img width="1602" height="939" alt="settings" src="https://github.com/user-attachments/assets/06354e58-177d-4cc3-8997-0f0fb7150342" />
+   <img width="1602" height="939" alt="settings" src="https://github.com/user-attachments/assets/613d9203-283f-4d7b-8557-4d0bc238fb3e" />
+
 
 
 
