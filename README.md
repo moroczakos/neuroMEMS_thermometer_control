@@ -1,6 +1,6 @@
 # Thermometer Control App
 
-A small Python GUI application for controlling a current source and multimeter to measure temperature and visualize results. The app launches a tabbed interface of sub-apps (see `apps/CombinedApp.py`) and is intended as a desktop controller and plotter for experiment workflows.
+A small Python GUI application for controlling a current source and a multimeter to measure temperature and visualize results. The app launches a tabbed interface of sub-apps (see `apps/CombinedApp.py`) and is intended as a desktop controller and plotter for experiment workflows.
 
 ## Why This Project Is Useful
 
@@ -150,11 +150,12 @@ Repository owner: [moroczakos](https://github.com/moroczakos)
 Here are a few screenshots of the app's interface:
 
 1. **Temperature Measurement Station**:
-   ![Temperature Measurement](images/temperature_measurement.png)
-
+   <img width="1602" height="939" alt="temp_meas_station" src="https://github.com/user-attachments/assets/e913b334-f27c-4614-883e-c8680a189092" />
+   
 2. **Temperature Plotter**:
-   ![Temperature Plotter](images/temperature_plotter.png)
-
+   <img width="1602" height="939" alt="image" src="https://github.com/user-attachments/assets/730613c9-3c0d-4306-a85e-64cd07c960f5" />
+   
 3. **Temperature Recalculation**:
-   ![Temperature Recalculation](images/temperature_recalculation.png)
+   <img width="1602" height="939" alt="image" src="https://github.com/user-attachments/assets/c0686dec-d5ac-406d-b891-e7d00945a2e6" />
+
 
