@@ -11,7 +11,7 @@ from utils.constants import Keys, Logger, UI
 
 
 class ThermometerModel:
-    def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path):
+    def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path, current_source_app = None, current_source = None):
         self.name = "thermometer_model"
 
         # Settings
@@ -26,10 +26,12 @@ class ThermometerModel:
 
         # Define measurement profile
         self.profile = profile
+        self.c_app = current_source_app
+        self.c_source = current_source
 
         # Instrument
         self.instrument_manager = instrument_manager
-        self.instrument_alias = "dmm"
+        self.instrument_alias = "dmm4wire"
 
         # Data
         self.start_time = None
@@ -54,6 +56,9 @@ class ThermometerModel:
 
     def set_probe_name(self, probe_name):
         self.probe_name = probe_name
+
+    def set_instrument_alias(self, alias):
+        self.instrument_alias = alias
 
     def attach(self, observer):
         self.observers.append(observer)
@@ -108,6 +113,15 @@ class ThermometerModel:
         self._notify_observers_about_running()
         self.start_time = time.time()
 
+        # Initialize current source if the instrument alias is "dmm2wire" as in case of 2-wire measurement the
+        # dmm measures resistance with a known input current provided by the mock current source (dmm measures voltage
+        # and calculates resistance using Ohm's law). In 4-wire measurement, the dmm measures resistance directly
+        # without needing a current source.
+        self.c_source = None
+        if self.instrument_alias == "dmm2wire":
+            self.c_source = CurrentSourceMock(self.setting_manager)
+            #self.c_app.controller.set_current_and_start(0.001)
+
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._measure_loop)
 
@@ -144,6 +158,9 @@ class ThermometerModel:
             self._notify_logger(Logger.INFO, "Measurement stopped.")
             self.csv_data_logger.stop()
             self.csv_raw_data_logger.stop()
+
+            #if self.instrument_alias == "dmm2wire":
+            #    self.c_app.controller.stop_current()
 
     def _preview_loop(self):
         while self.preview_running:
@@ -191,9 +208,43 @@ class ThermometerModel:
     def _perform_measurement(self):
         dmm_handler = self.instrument_manager.get_handler(self.instrument_alias)
         timestamp = time.time() - self.start_time
-        meas_dict = self.profile.measure_func(dmm_handler)
+        meas_dict = self.profile.measure_func(dmm_handler, self.c_source)
         resistance = meas_dict["resistance"]
         temperature = self.profile.post_process_func(resistance, self.R0,
                                                      self.TCR) if self.profile.post_process_func else None
 
         return timestamp, resistance, temperature
+
+
+class CurrentSourceMock:
+    def __init__(self, setting_manager):
+        self.cycles = setting_manager.load_setting(Keys.CYCLES)
+        self.cycle_sequence = setting_manager.load_setting(Keys.CYCLE_SEQUENCE)
+        self.offset = self.cycle_sequence.pop(0)
+        self.start_time = None
+
+    def get_schedule(self):
+        schedule = [{"end_time_step": self.offset["duration"], "current": self.offset["current"]}]
+
+        for i in range(0, self.cycles):
+            for step_index, step in enumerate(self.cycle_sequence):
+                last_end_time = schedule[-1]["end_time_step"]
+                schedule.append({"end_time_step": last_end_time + step["duration"], "current": step["current"]})
+
+        return schedule
+
+    def set_start_time(self, start_time):
+        self.start_time = start_time
+
+    def measure(self):
+        if self.start_time is None:
+            self.start_time = time.time()
+
+        elapsed_time = time.time() - self.start_time
+        schedule = self.get_schedule()
+
+        for step in schedule:
+            if elapsed_time <= step["end_time_step"]:
+                return step["current"]
+
+        return 1.0

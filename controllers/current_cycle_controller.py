@@ -14,6 +14,21 @@ class CurrentCycleController:
     def attach_to_model(self, observer):
         self.model.attach(observer)
 
+    def set_current_and_start(self, current_value):
+        # Apply loading window
+        visa_resource = self.view.get_visa_resource()
+        if not self.view.loading_connection(lambda: self.model.connect_instrument(visa_resource)):
+            return
+
+        self.model.configure_device()
+        self.view.set_started_current_cycle_controls()
+        self.model.load_settings()
+        self.model.set_current_and_start(current_value)
+
+    def stop_current(self):
+        self.model.stop_current()
+        self.view.enable_controls()
+
     def start_measurement(self):
         # Apply loading window
         visa_resource = self.view.get_visa_resource()

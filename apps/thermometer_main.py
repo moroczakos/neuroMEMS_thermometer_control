@@ -14,25 +14,31 @@ from utils.measurement_profile import MeasurementProfile
 
 
 class ThermometerMain(MainBase):
-    def __init__(self, root):
+    def __init__(self, root, cycle_app = None):
         MainBase.__init__(self)
 
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
+
+        self.current_source = None
+        self.current_source_app = cycle_app
 
         self.setup_logger("thermometer_app.log")
         self.probe_path = os.path.join(self.input_file_path, "thermoprobes.csv")
         self.output_file_path = os.path.join(self.output_base_file_path, "thermometer")
 
         instrument_manager = InstrumentManager()
-        profile = self._create_measurement_profile()
+        self.profile = self._create_measurement_profile()
+        profile = self.profile
 
         model = ThermometerModel(
             instrument_manager,
             self.setting_manager,
             profile,
             self.input_file_path,
-            self.output_file_path
+            self.output_file_path,
+            self.current_source_app,
+            self.current_source
         )
 
         view = ThermometerView(self.root, self.probe_path, self.setting_manager, self.logger, profile)
@@ -53,7 +59,8 @@ class ThermometerMain(MainBase):
             headers = ["Timestamp", "Resistance (Ohms)", "Temperature (Celsius)"],
             y1_label = "Resistance (Ohms)",
             y2_label = "Temperature (°C)",
-            measure_func = lambda dmm: dmm.measure(),
+            measure_func = lambda dmm, c_source = None:
+            dmm.measure() if c_source is None else {"resistance": dmm.measure()["resistance"] / c_source.measure()},
             post_process_func = lambda r, R0, TCR: (r / R0 - 1) / TCR if R0 > 0 and TCR > 0 else float('nan')
         )
 

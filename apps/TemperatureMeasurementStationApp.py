@@ -38,7 +38,7 @@ class TemperatureMeasurementStationApp(MainBase):
 
         ttk.Label(self.right_frame, text = "Thermometer app", justify = EntryConfig.JUSTIFY,
                   font = ("Arial", 24)).pack()
-        self.thermometer_app = ThermometerMain(self.right_frame)
+        self.thermometer_app = ThermometerMain(self.right_frame, self.cycle_app)
 
         # Create a frame for the buttons
         self.button_frame = ttk.Frame(root, relief = "solid", borderwidth = 2)

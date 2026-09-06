@@ -5,6 +5,7 @@ class Keys:
     CYCLES = "cycles"
     INTERVAL = "interval"
     AVG_COUNT = "avg_count"
+    WIRE_MODE = "wire_mode"
     CURRENT_RANGE_KEY = "Current range (A)"
     VOLTAGE_LIMIT_KEY = "Voltage limit (V)"
     CYCLE_SEQUENCE = "cycle_sequence"

@@ -100,6 +100,35 @@ class CurrentCycleModel:
         if voltage_limit:
             source_handler.set_voltage_limit(voltage_limit)
 
+    def set_current_and_start(self, current):
+        self.running = True
+        self._notify_observers_about_running()
+
+        try:
+            source_handler = self.instrument_manager.get_handler(self.instrument_alias)
+            source_handler.set_digital_io_low()
+
+            self._notify_logger(Logger.INFO, f"Setting current to {current} A")
+            source_handler.set_current(current)
+        except Exception as e:
+            self.running = False
+            self._notify_observers_about_running()
+            self._notify_logger(Logger.ERROR, f"Failed to set current: {e}\n {traceback.format_exc()}")
+
+            error = self.instrument_manager.get_error(self.instrument_alias)
+            if error:
+                self._notify_logger(Logger.ERROR, error)
+
+    def stop_current(self):
+        if self.running:
+            self.running = False
+            self._notify_observers_about_running()
+
+            if self.instrument_manager.get_instrument(self.instrument_alias):
+                self.instrument_manager.disconnect(self.instrument_alias)
+
+            self._notify_logger(Logger.INFO, "Stopped the current source.")
+
     def start_data_collection(self):
         self.running = True
         self._notify_observers_about_running()

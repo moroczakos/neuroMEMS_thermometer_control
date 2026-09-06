@@ -1,13 +1,15 @@
 import pyvisa
 from tkinter import messagebox
-from instruments.handlers.dmm_handler import DMMHandler
+from instruments.handlers.dmm_handler_2_wire import DMMHandler2Wire
+from instruments.handlers.dmm_handler_4_wire import DMMHandler4Wire
 from instruments.handlers.source_handler_6221 import SourceHandler6221
 from instruments.handlers.source_handler_2611 import SourceHandler2611
 
 
 class InstrumentManager:
     handler_registry = {
-        "dmm": DMMHandler,
+        "dmm2wire": DMMHandler2Wire,
+        "dmm4wire": DMMHandler4Wire,
         "source_6221": SourceHandler6221,
         "source_2611": SourceHandler2611
     }

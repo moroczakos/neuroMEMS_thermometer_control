@@ -17,6 +17,8 @@ class ThermometerController:
         self.model.attach(observer)
 
     def start_measurement(self):
+        self.model.set_instrument_alias(self.view.get_instrument_alias())
+
         # Apply loading window
         visa_resource = self.view.get_visa_resource()
         if not self.view.loading_connection(lambda: self.model.connect_instrument(visa_resource)):
@@ -37,13 +39,17 @@ class ThermometerController:
         self.view.stop_preview()
 
     def start_preview(self):
+        self.model.set_instrument_alias(self.view.get_instrument_alias())
+
         # Apply loading window
         visa_resource = self.view.get_visa_resource()
         if not self.view.loading_connection(lambda: self.model.connect_instrument(visa_resource)):
             return
 
         self.view.set_started_preview_controls()
+        self.model.load_settings()
         self.model.set_R0_TCR(self.view.get_R0_TCR())
+        self.model.set_probe_name(self.view.get_probe_name())
         self.model.start_data_preview()
         self.view.start_preview()
 
