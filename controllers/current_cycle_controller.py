@@ -1,57 +1,60 @@
 class CurrentCycleController:
     def __init__(self, model, view):
-        self.model = model
-        self.view = view
-        self.view.set_start_button_command(self.start_measurement)
-        self.view.set_stop_button_command(self.stop_measurement)
+        self._model = model
+        self._view = view
+        self._view.set_start_button_command(self.start_measurement)
+        self._view.set_stop_button_command(self.stop_measurement)
 
-        self.model.load_settings()
-        self.model.attach(self.view)
+        self._model.load_settings()
+        self._model.attach(self._view)
 
     def is_running(self):
-        return self.model.running or self.view.running
+        return self._model.running or self._view.running
 
     def attach_to_model(self, observer):
-        self.model.attach(observer)
+        self._model.attach(observer)
+
+    def get_current(self):
+        return self._model.get_current()
 
     def set_current_and_start(self, current_value):
         # Apply loading window
-        visa_resource = self.view.get_visa_resource()
-        if not self.view.loading_connection(lambda: self.model.connect_instrument(visa_resource)):
+        visa_resource = self._view.get_visa_resource()
+        if not self._view.loading_connection(lambda: self._model.connect_instrument(visa_resource)):
             return
 
-        self.model.configure_device()
-        self.view.set_started_current_cycle_controls()
-        self.model.load_settings()
-        self.model.set_current_and_start(current_value)
+        self._model.configure_device()
+        self._view.set_started_current_cycle_controls()
+        self._model.load_settings()
+        self._model.set_current_and_start(current_value)
 
     def stop_current(self):
-        self.model.stop_current()
-        self.view.enable_controls()
+        self._model.stop_current()
+        self._view.enable_controls()
 
     def start_measurement(self):
         # Apply loading window
-        visa_resource = self.view.get_visa_resource()
-        if not self.view.loading_connection(lambda: self.model.connect_instrument(visa_resource)):
+        visa_resource = self._view.get_visa_resource()
+        if not self._view.loading_connection(lambda: self._model.connect_instrument(visa_resource)):
             return
 
-        self.model.configure_device()
-        self.view.set_started_current_cycle_controls()
-        self.model.load_settings()
-        self.model.start_data_collection()
-        self.view.start_live_display()
+        self._model.configure_device()
+        self._view.set_started_current_cycle_controls()
+        self._model.load_settings()
+        self._model.start_data_collection()
+        self._view.start_live_display()
 
     def stop_measurement(self):
-        self.model.stop_data_collection()
-        self.view.enable_controls()
-        self.view.show_measurement_stopped()
+        self._model.stop_data_collection()
+        self._view.enable_controls()
+        self._view.show_measurement_stopped()
 
     def update_other_setting(self, key):
-        self.model.update_other_setting(key)
-        self.view.update_other_setting_display(self.model.other_setting_value)
+        self._model.update_other_setting(key)
+        self._view.update_other_setting_display(self._model.other_setting_value)
 
     def enable_controls(self):
-        self.view.enable_controls()
+        self._view.enable_controls()
 
     def disable_controls(self):
-        self.view.disable_controls()
+        self._view.disable_controls()

@@ -100,6 +100,9 @@ class CurrentCycleModel:
         if voltage_limit:
             source_handler.set_voltage_limit(voltage_limit)
 
+    def get_current(self):
+        return self.current
+
     def set_current_and_start(self, current):
         self.running = True
         self._notify_observers_about_running()
@@ -110,7 +113,9 @@ class CurrentCycleModel:
 
             self._notify_logger(Logger.INFO, f"Setting current to {current} A")
             source_handler.set_current(current)
+            self.current = current
         except Exception as e:
+            self.current = 0
             self.running = False
             self._notify_observers_about_running()
             self._notify_logger(Logger.ERROR, f"Failed to set current: {e}\n {traceback.format_exc()}")
@@ -121,13 +126,14 @@ class CurrentCycleModel:
 
     def stop_current(self):
         if self.running:
+            self.current = 0
             self.running = False
             self._notify_observers_about_running()
 
             if self.instrument_manager.get_instrument(self.instrument_alias):
                 self.instrument_manager.disconnect(self.instrument_alias)
 
-            self._notify_logger(Logger.INFO, "Stopped the current source.")
+            self._notify_logger(Logger.INFO, f"Stopped the current source. Setting current to {self.current} A")
 
     def start_data_collection(self):
         self.running = True
@@ -152,6 +158,7 @@ class CurrentCycleModel:
 
     def stop_data_collection(self):
         if self.running:
+            self.current = 0
             self.running = False
             self._notify_observers_about_update()
             self._notify_observers_about_running()
@@ -241,6 +248,7 @@ class CurrentCycleModel:
     def _set_current(self, source_handler, current, duration):
         self._notify_logger(Logger.INFO, f"Setting current to {current} A for {duration} s")
         source_handler.set_current(current)
+        self.current = current
 
     def _set_digital_io(self, source_handler, value, duration):
         if value == Other.HIGH:

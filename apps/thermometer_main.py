@@ -59,8 +59,16 @@ class ThermometerMain(MainBase):
             headers = ["Timestamp", "Resistance (Ohms)", "Temperature (Celsius)"],
             y1_label = "Resistance (Ohms)",
             y2_label = "Temperature (°C)",
-            measure_func = lambda dmm, c_source = None:
-            dmm.measure() if c_source is None else {"resistance": dmm.measure()["resistance"] / c_source.measure()},
+            measure_func = lambda dmm, c_source = None: (
+                dmm.measure()
+                if c_source is None
+                else (
+                    (lambda i: {"resistance": 0.001} if i is None or i == 0 else {
+                        "resistance": dmm.measure()["resistance"] / i})(
+                        c_source.get_current()
+                    )
+                )
+            ),
             post_process_func = lambda r, R0, TCR: (r / R0 - 1) / TCR if R0 > 0 and TCR > 0 else float('nan')
         )
 

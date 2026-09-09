@@ -11,7 +11,8 @@ from utils.constants import Keys, Logger, UI
 
 
 class ThermometerModel:
-    def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path, current_source_app = None, current_source = None):
+    def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path,
+                 current_source_app = None, current_source = None):
         self.name = "thermometer_model"
 
         # Settings
@@ -89,6 +90,9 @@ class ThermometerModel:
         self._notify_observers_about_running()
         self.start_time = time.time()
 
+        if self.instrument_alias == "dmm2wire":
+            self.c_app.controller.set_current_and_start(0.001)
+
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._preview_loop)
 
@@ -108,6 +112,9 @@ class ThermometerModel:
 
             self._notify_logger(Logger.INFO, "Preview stopped.")
 
+            if self.instrument_alias == "dmm2wire":
+                self.c_app.controller.stop_current()
+
     def start_data_collection(self):
         self.running = True
         self._notify_observers_about_running()
@@ -118,9 +125,13 @@ class ThermometerModel:
         # and calculates resistance using Ohm's law). In 4-wire measurement, the dmm measures resistance directly
         # without needing a current source.
         self.c_source = None
-        if self.instrument_alias == "dmm2wire":
-            self.c_source = CurrentSourceMock(self.setting_manager)
+
+        c_app_current = self.c_app.controller.get_current()
+
+        if self.instrument_alias == "dmm2wire": #(c_app_current == None or c_app_current == 0):
+            # self.c_source = CurrentSourceMock(self.setting_manager)
             #self.c_app.controller.set_current_and_start(0.001)
+            pass
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._measure_loop)
@@ -159,8 +170,8 @@ class ThermometerModel:
             self.csv_data_logger.stop()
             self.csv_raw_data_logger.stop()
 
-            #if self.instrument_alias == "dmm2wire":
-            #    self.c_app.controller.stop_current()
+            if self.instrument_alias == "dmm2wire":
+                self.c_app.controller.stop_current()
 
     def _preview_loop(self):
         while self.preview_running:
@@ -208,7 +219,12 @@ class ThermometerModel:
     def _perform_measurement(self):
         dmm_handler = self.instrument_manager.get_handler(self.instrument_alias)
         timestamp = time.time() - self.start_time
-        meas_dict = self.profile.measure_func(dmm_handler, self.c_source)
+
+        if self.instrument_alias == "dmm2wire":
+            meas_dict = self.profile.measure_func(dmm_handler, self.c_app.controller)
+        else:
+            meas_dict = self.profile.measure_func(dmm_handler)
+
         resistance = meas_dict["resistance"]
         temperature = self.profile.post_process_func(resistance, self.R0,
                                                      self.TCR) if self.profile.post_process_func else None
