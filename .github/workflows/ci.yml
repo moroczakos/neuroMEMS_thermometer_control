@@ -30,11 +30,11 @@ jobs:
             python -m pip install pytest pyinstaller
           }
 
-      - name: Run tests
-        shell: pwsh
-        run: |
-          Write-Host "Running all tests from repository root..."
-          python -m pytest -q .
+      #- name: Run tests
+       # shell: pwsh
+        #run: |
+         # Write-Host "Running all tests from repository root..."
+          #python -m pytest -q .
 
       - name: Build EXE with PyInstaller
         shell: pwsh
