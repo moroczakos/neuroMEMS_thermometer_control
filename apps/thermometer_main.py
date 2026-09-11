@@ -20,7 +20,6 @@ class ThermometerMain(MainBase):
         self.root = tk.Frame(root)
         self.root.pack(fill = 'both', expand = True)
 
-        self.current_source = None
         self.current_source_app = cycle_app
 
         self.setup_logger("thermometer_app.log")
@@ -37,8 +36,7 @@ class ThermometerMain(MainBase):
             profile,
             self.input_file_path,
             self.output_file_path,
-            self.current_source_app,
-            self.current_source
+            self.current_source_app.controller if self.current_source_app is not None else None
         )
 
         view = ThermometerView(self.root, self.probe_path, self.setting_manager, self.logger, profile)

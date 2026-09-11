@@ -10,6 +10,9 @@ class ThermometerController:
         self._model.load_settings()
         self._model.attach(self._view)
 
+    def set_start_with_cycle_app(self, value):
+        self._model.set_start_with_cycle_app(value)
+
     def is_running(self):
         return self._model.running or self._view.running or self._model.preview_running
 
@@ -34,9 +37,9 @@ class ThermometerController:
     def stop_measurement(self):
         self._model.stop_data_collection()
         self._model.stop_data_preview()
-        self._view.enable_controls()
         self._view.show_measurement_stopped()
         self._view.stop_preview()
+        self._view.enable_controls()
 
     def start_preview(self):
         self._model.set_instrument_alias(self._view.get_instrument_alias())

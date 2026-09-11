@@ -61,6 +61,8 @@ class TemperatureMeasurementStationApp(MainBase):
 
     def start_apps(self):
         """Starts both applications."""
+        self.thermometer_app.controller.set_start_with_cycle_app(True)
+
         self.cycle_app.controller.start_measurement()  # Call the start method of CurrentCycleApp
         self.thermometer_app.controller.start_measurement()  # Call the start method of ThermometerApp
 
@@ -77,6 +79,7 @@ class TemperatureMeasurementStationApp(MainBase):
 
         self.cycle_app.controller.enable_controls()
         self.thermometer_app.controller.enable_controls()
+        self.thermometer_app.controller.set_start_with_cycle_app(False)
 
         self._set_widget_states(True)
         self.is_combined = False

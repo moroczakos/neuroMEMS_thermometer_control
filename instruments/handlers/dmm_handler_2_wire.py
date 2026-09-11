@@ -6,5 +6,6 @@ class DMMHandler2Wire(DMMHandler):
         instr = self.instrument
         instr.write("*RST")
         instr.write("CONF:VOLT:DC 10")
-        instr.write("SENS:VOLT:NPLC 1")
+        #instr.write("SENS:VOLT:NPLC 1")
+        instr.write("SENS:fres:NPLC 0.02")
 

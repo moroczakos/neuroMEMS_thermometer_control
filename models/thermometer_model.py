@@ -12,7 +12,7 @@ from utils.constants import Keys, Logger, UI
 
 class ThermometerModel:
     def __init__(self, instrument_manager, setting_manager, profile, input_file_path, output_file_path,
-                 current_source_app = None, current_source = None):
+                 current_source_app = None):
         self.name = "thermometer_model"
 
         # Settings
@@ -27,8 +27,11 @@ class ThermometerModel:
 
         # Define measurement profile
         self.profile = profile
+
+        # Current cycle app
         self.c_app = current_source_app
-        self.c_source = current_source
+        self.start_with_cycle_app = False
+        self.c_source = None
 
         # Instrument
         self.instrument_manager = instrument_manager
@@ -50,6 +53,9 @@ class ThermometerModel:
 
         self.csv_data_logger.set_max_queue_size(self.setting_manager.load_setting(UI.MAX_QUEUE_SIZE))
         self.csv_raw_data_logger.set_max_queue_size(self.setting_manager.load_setting(UI.MAX_QUEUE_SIZE))
+
+    def set_start_with_cycle_app(self, value):
+        self.start_with_cycle_app = value
 
     def set_R0_TCR(self, data):
         self.R0 = data[0]
@@ -91,7 +97,7 @@ class ThermometerModel:
         self.start_time = time.time()
 
         if self.instrument_alias == "dmm2wire":
-            self.c_app.controller.set_current_and_start(0.001)
+            self.c_app.set_current_and_start(0.001)
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._preview_loop)
@@ -113,7 +119,7 @@ class ThermometerModel:
             self._notify_logger(Logger.INFO, "Preview stopped.")
 
             if self.instrument_alias == "dmm2wire":
-                self.c_app.controller.stop_current()
+                self.c_app.stop_current()
 
     def start_data_collection(self):
         self.running = True
@@ -126,12 +132,9 @@ class ThermometerModel:
         # without needing a current source.
         self.c_source = None
 
-        c_app_current = self.c_app.controller.get_current()
-
-        if self.instrument_alias == "dmm2wire": #(c_app_current == None or c_app_current == 0):
-            # self.c_source = CurrentSourceMock(self.setting_manager)
-            #self.c_app.controller.set_current_and_start(0.001)
-            pass
+        if self.instrument_alias == "dmm2wire" and not self.start_with_cycle_app:
+            #self.c_source = CurrentSourceMock(self.setting_manager)
+            self.c_app.set_current_and_start(0.001)
 
         self.executor = ThreadPoolExecutor(max_workers = 4)
         self.executor.submit(self._measure_loop)
@@ -171,7 +174,7 @@ class ThermometerModel:
             self.csv_raw_data_logger.stop()
 
             if self.instrument_alias == "dmm2wire":
-                self.c_app.controller.stop_current()
+                self.c_app.stop_current()
 
     def _preview_loop(self):
         while self.preview_running:
@@ -221,7 +224,7 @@ class ThermometerModel:
         timestamp = time.time() - self.start_time
 
         if self.instrument_alias == "dmm2wire":
-            meas_dict = self.profile.measure_func(dmm_handler, self.c_app.controller)
+            meas_dict = self.profile.measure_func(dmm_handler, self.c_app)
         else:
             meas_dict = self.profile.measure_func(dmm_handler)
 
