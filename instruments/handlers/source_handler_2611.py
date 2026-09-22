@@ -19,10 +19,10 @@ class SourceHandler2611(SourceHandler):
         instr = self.instrument
         instr.write("smua.reset() ")  # Restore Series 2600B defaults.
         instr.write("smua.source.func = smua.OUTPUT_DCAMPS")  # Select current source function.
-        instr.write("smua.source.rangei = 0.6")  # Set source range to 0.6 A.
-        instr.write("smua.source.leveli = 0")  # Set current source to 0 A.
-        instr.write("smua.source.limitv = 10")  # Set voltage limit to 10 V.
-        instr.write("smua.sense = smua.SENSE_REMOTE")  # Enable 4-wire ohms.
+        # instr.write("smua.source.rangei = 0.6")  # Set source range to 0.6 A.
+        # instr.write("smua.source.leveli = 0")  # Set current source to 0 A.
+        # instr.write("smua.source.limitv = 10")  # Set voltage limit to 10 V.
+        # instr.write("smua.sense = smua.SENSE_REMOTE")  # Enable 4-wire ohms.
         instr.write("smua.measure.autorangev = smua.AUTORANGE_ON")  # Set voltage range to auto.
         instr.write("smua.source.output = smua.OUTPUT_ON")  # Turn on output.
 

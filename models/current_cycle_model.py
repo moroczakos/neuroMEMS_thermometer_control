@@ -112,6 +112,7 @@ class CurrentCycleModel:
             source_handler.set_digital_io_low()
 
             self._notify_logger(Logger.INFO, f"Setting current to {current} A")
+            source_handler.reset()
             source_handler.set_current(current)
             self.current = current
         except Exception as e:
@@ -177,6 +178,7 @@ class CurrentCycleModel:
         try:
             source_handler = self.instrument_manager.get_handler(self.instrument_alias)
             source_handler.set_digital_io_low()
+            source_handler.reset()
             start_time = time.time()
 
             self._notify_logger(Logger.INFO, "Starting offset")
@@ -233,9 +235,10 @@ class CurrentCycleModel:
             if not self._wait_until(scheduled_time):
                 return False
 
-            self._set_current(source_handler, step["current"], step["duration"])
             if self.enable_digital_io:
                 self._set_digital_io(source_handler, step.get("digital_io", Other.LOW), step["duration"])
+
+            self._set_current(source_handler, step["current"], step["duration"])
 
         return True
 
