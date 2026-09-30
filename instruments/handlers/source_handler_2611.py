@@ -23,7 +23,10 @@ class SourceHandler2611(SourceHandler):
         # instr.write("smua.source.leveli = 0")  # Set current source to 0 A.
         # instr.write("smua.source.limitv = 10")  # Set voltage limit to 10 V.
         # instr.write("smua.sense = smua.SENSE_REMOTE")  # Enable 4-wire ohms.
-        instr.write("smua.measure.autorangev = smua.AUTORANGE_ON")  # Set voltage range to auto.
+
+        # Change auto range to fixed range
+        #instr.write("smua.measure.autorangev = smua.AUTORANGE_ON")  # Set voltage range to auto.
+        instr.write("smua.measure.rangev = 10")
         instr.write("smua.source.output = smua.OUTPUT_ON")  # Turn on output.
 
     def measure(self):
