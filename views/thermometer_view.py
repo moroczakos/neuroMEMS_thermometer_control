@@ -19,7 +19,7 @@ from utils.other_utils import (
     load_visa_resources_util,
     save_setting_from_widget,
 )
-from utils.plot_utils import create_dual_axis_plot
+from utils.plot_utils import DualAxisPlot
 from utils.constants import Keys, EntryConfig, States, Logger, UI
 from utils.ui_utils.tooltip import ToolTip
 
@@ -48,6 +48,7 @@ class ThermometerView(ViewBase):
         self.TCR = tk.DoubleVar()
         self.interval = tk.DoubleVar(value = self.setting_manager.load_setting(Keys.INTERVAL))
         self.average_count = tk.IntVar(value = self.setting_manager.load_setting(Keys.AVG_COUNT))
+        self.wire_mode = tk.StringVar(value = self.setting_manager.load_setting(Keys.WIRE_MODE))
         self.max_points_to_plot = self.setting_manager.load_setting(UI.MAX_POINTS_TO_PLOT)
 
         # Data
@@ -99,6 +100,7 @@ class ThermometerView(ViewBase):
         self._create_visa_selector()
         self._create_thermoprobe_selector()
         self._create_measurement_settings_section()
+        self._create_wire_mode_toggle()
         self._create_preview_section()
         self._create_live_display_section()
 
@@ -158,6 +160,27 @@ class ThermometerView(ViewBase):
         self.stop_button.grid(row = 2, column = 5)
         ToolTip(self.stop_button, self.tooltips.get("thermometer_stop_btn", ""))
 
+    def _create_wire_mode_toggle(self):
+        wire_label = ttk.Label(self.frame, text = "Ⓘ Resistance mode:")
+        wire_label.grid(row = 2, column = 6, padx = (10, 0))
+        ToolTip(wire_label, self.tooltips.get("wire_mode_label", ""))
+
+        self.wire_toggle_button = ttk.Button(
+            self.frame,
+            text = self.wire_mode.get(),  # initial text
+            command = self._toggle_wire_mode,
+            width = 8
+        )
+        self.wire_toggle_button.grid(row = 2, column = 7, padx = 5)
+
+    def _toggle_wire_mode(self):
+        current = self.wire_mode.get()
+        new_mode = "2-wire" if current == "4-wire" else "4-wire"
+        self.wire_mode.set(new_mode)
+        self.wire_toggle_button.config(text = new_mode)
+        self.setting_manager.save_setting("wire_mode", new_mode)
+        self.logger.info(f"Resistance mode set to: {new_mode}")
+
     def _create_live_display_section(self):
         ttk.Label(self.frame, text = f"Live {self.profile.y1_label}:").grid(row = 3, column = 0, sticky = 'e')
         ttk.Label(self.frame, textvariable = self.resistance_y1).grid(row = 3, column = 1, sticky = 'w')
@@ -189,11 +212,23 @@ class ThermometerView(ViewBase):
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def _setup_plot(self):
-        _, ax1, ax2, line1, line2, self.canvas, self.scrollbar = create_dual_axis_plot(
-            self.root, f"Live {self.profile.name}", "Time (s)", self.profile.y1_label, self.profile.y2_label)
-        self.lines = [line1, line2]
-        self.axes = [ax1, ax2]
-        self.scrollbar.config(command = self._on_scroll)
+        self.plot = DualAxisPlot(
+            self.root, f"Live {self.profile.name}", "Time (s)",
+            self.profile.y1_label, self.profile.y2_label,
+            "red", "black",
+            on_limits_changed=self._refresh_plot_if_idle)
+
+        self.canvas = self.plot.canvas
+        self.axes = self.plot.axes
+        self.lines = self.plot.lines
+        self.scrollbar = self.plot.scrollbar
+        self.y_lim_mins = self.plot.y_lim_mins
+        self.y_lim_maxs = self.plot.y_lim_maxs
+        self.scrollbar.config(command=self._on_scroll)
+
+    def _refresh_plot_if_idle(self):
+        if self.live_data_plotter and not self.running:
+            self.live_data_plotter.update_plot()
 
     def _on_scroll(self, *args):
         try:
@@ -265,11 +300,23 @@ class ThermometerView(ViewBase):
             self.visa_dropdown,
             self.refresh_button,
             self.probe_dropdown,
-            self.interval_ewl.get_entry()
+            self.interval_ewl.get_entry(),
+            self.wire_toggle_button,
         ]
 
         for widget in widgets:
             widget.config(state = state)
+
+    def get_instrument_alias(self):
+        wire_mode = self.wire_mode.get()
+
+        if wire_mode == "2-wire":
+            return "dmm2wire"
+        elif wire_mode == "4-wire":
+            return "dmm4wire"
+        else:
+            self.log(Logger.ERROR, f"Invalid wire mode: {wire_mode}")
+            return None
 
     def set_started_measurement_controls(self):
         self._set_widget_states(enabled = False, preview = True)

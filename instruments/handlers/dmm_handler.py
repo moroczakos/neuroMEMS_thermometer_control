@@ -1,9 +1,10 @@
 import time
+from abc import ABC, abstractmethod
 from instruments.handlers.base import InstrumentHandler
 from instruments.mock_Keithley2100 import MockKeithley2100
 
 
-class DMMHandler(InstrumentHandler):
+class DMMHandler(InstrumentHandler, ABC):
     def connect(self, resource_manager):
         if self.use_mock or self.address == "MOCK":
             self.instrument = MockKeithley2100()
@@ -13,11 +14,9 @@ class DMMHandler(InstrumentHandler):
         self.reset()
         return self.instrument
 
+    @abstractmethod
     def reset(self):
-        instr = self.instrument
-        instr.write("*RST")
-        instr.write("CONF:FRES 1000")
-        instr.write("SENS:FRES:NPLC 1")
+        pass
 
     def measure(self):
         instr = self.instrument

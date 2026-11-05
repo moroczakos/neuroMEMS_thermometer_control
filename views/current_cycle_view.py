@@ -22,7 +22,7 @@ from utils.other_utils import (
     load_visa_resources_util,
     save_setting_from_widget,
 )
-from utils.plot_utils import create_dual_axis_plot
+from utils.plot_utils import DualAxisPlot
 from utils.constants import Keys, EntryConfig, States, Labels, Logger, UI, Other
 from utils.ui_utils.tooltip import ToolTip
 
@@ -427,13 +427,23 @@ class CurrentCycleView(ViewBase):
         save_setting_from_widget(self.setting_manager, name, value, logger = self.logger)
 
     def _setup_plot(self):
-        _, ax1, ax2, line1, line2, self.canvas, self.scrollbar = create_dual_axis_plot(
-            self.root, f"Live {self.profile.name}", "Time (s)", self.profile.y1_label, self.profile.y2_label,
-            "blue",
-            "black")
-        self.lines = [line1, line2]
-        self.axes = [ax1, ax2]
+        self.plot = DualAxisPlot(
+            self.root, f"Live {self.profile.name}", "Time (s)",
+            self.profile.y1_label, self.profile.y2_label,
+            "blue", "black",
+            on_limits_changed = self._refresh_plot_if_idle)
+
+        self.canvas = self.plot.canvas
+        self.axes = self.plot.axes
+        self.lines = self.plot.lines
+        self.scrollbar = self.plot.scrollbar
+        self.y_lim_mins = self.plot.y_lim_mins
+        self.y_lim_maxs = self.plot.y_lim_maxs
         self.scrollbar.config(command = self._on_scroll)
+
+    def _refresh_plot_if_idle(self):
+        if self.live_data_plotter and not self.running:
+            self.live_data_plotter.update_plot()
 
     def _on_scroll(self, *args):
         try:

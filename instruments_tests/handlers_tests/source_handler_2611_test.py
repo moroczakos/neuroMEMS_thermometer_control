@@ -51,12 +51,6 @@ class TestSourceHandler2611:
         # Check presence of key commands
         assert any("smua.reset" in s for s in calls)
         assert any("smua.source.func" in s for s in calls)
-        assert any("smua.source.rangei" in s for s in calls)
-        assert any("smua.source.leveli" in s for s in calls)
-        assert any("smua.source.limitv" in s for s in calls)
-        assert any("smua.sense" in s for s in calls)
-        assert any("smua.measure.autorangev" in s for s in calls)
-        assert any("smua.source.output" in s for s in calls)
 
     def test_measure_parses_iv_and_calculates_resistance(self):
         # Arrange

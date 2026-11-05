@@ -1,5 +1,3 @@
-import sys, os
-import tkinter as tk
 from tkinter import ttk
 from tkinter import Frame
 from apps.TemperatureMeasurementStationApp import TemperatureMeasurementStationApp

@@ -1,3 +1,4 @@
+import os
 import time
 
 import pytest
@@ -11,6 +12,9 @@ from utils.ui_utils.logger_panel import LoggingPanel
 @pytest.fixture(scope = "function")
 def root():
     """Fixture providing a hidden Tk root window."""
+    if os.environ.get("CI"):
+        pytest.skip("Skipping Tkinter GUI tests in CI environment")
+
     root = tk.Tk()
     root.withdraw()
     yield root

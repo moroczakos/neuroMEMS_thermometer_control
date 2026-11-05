@@ -1,9 +1,10 @@
 {
     "max_queue_size": 100,
     "max_points_to_plot": 500,
-    "probe": "SMA15",
+    "probe": "TE10",
     "interval": 0.01,
     "avg_count": 3,
+    "wire_mode": "2-wire",
     "current_high": 0.5,
     "current_low": 0.001,
     "duration_high": 2,
@@ -17,7 +18,7 @@
     "output_files": "output_files",
     "selected_output_folder": "..\\output_files",
     "log_files": "logs",
-    "cycle_sequence_file": "square_wave_example.json",
+    "cycle_sequence_file": "saw_tooth_wave3.json",
     "cycle_sequence": [
         {
             "current": 0.001,
@@ -26,12 +27,17 @@
         },
         {
             "current": 0.002,
-            "duration": 20.0,
+            "duration": 10.0,
             "digital_io": "high"
         },
         {
-            "current": 0.001,
-            "duration": 20.0,
+            "current": 0.004,
+            "duration": 10.0,
+            "digital_io": "low"
+        },
+        {
+            "current": 0.006,
+            "duration": 10.0,
             "digital_io": "low"
         }
     ],
