@@ -2,14 +2,14 @@ import pytest
 from unittest.mock import Mock
 
 from instruments.handlers.base import InstrumentHandler
-from instruments.handlers.dmm_handler import DMMHandler
+from instruments.handlers.dmm_handler_4_wire import DMMHandler4Wire
 from instruments.mock_Keithley2100 import MockKeithley2100
 
 
 class TestDMMHandler:
     def test_connect_uses_mock_when_address_is_mock(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.use_mock = True
         handler.address = "MOCK"
         rm = Mock()
@@ -24,7 +24,7 @@ class TestDMMHandler:
 
     def test_connect_uses_resource_manager_when_not_mock(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.use_mock = False
         handler.address = "GPIB::1"
         rm = Mock()
@@ -40,7 +40,7 @@ class TestDMMHandler:
 
     def test_reset_writes_expected_commands(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.instrument = Mock()
 
         # Act
@@ -54,7 +54,7 @@ class TestDMMHandler:
 
     def test_measure_writes_init_and_queries_fetch(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.instrument = Mock()
         handler.instrument.query.return_value = "123.45\n"
 
@@ -68,7 +68,7 @@ class TestDMMHandler:
 
     def test_get_error_returns_none_for_ok_strings(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.instrument = Mock()
 
         # Act & Assert
@@ -79,7 +79,7 @@ class TestDMMHandler:
 
     def test_get_error_returns_error_string_when_present(self):
         # Arrange
-        handler = DMMHandler(InstrumentHandler)
+        handler = DMMHandler4Wire(InstrumentHandler)
         handler.instrument = Mock()
         handler.instrument.query.return_value = "-123, \"OverRange\"\n"
 
