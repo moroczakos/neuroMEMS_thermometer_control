@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import tkinter as tk
 from unittest.mock import patch, MagicMock
@@ -8,6 +10,9 @@ from utils.ui_utils.tooltip import ToolTip
 @pytest.fixture
 def root():
     """Provides a hidden Tk root window."""
+    if os.environ.get("CI"):
+        pytest.skip("Skipping Tkinter GUI tests in CI environment")
+
     root = tk.Tk()
     root.withdraw()
     yield root
